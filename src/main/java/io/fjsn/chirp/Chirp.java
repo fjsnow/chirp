@@ -44,7 +44,19 @@ public class Chirp {
             this.jedisPool = new JedisPool(redisConfig, redisHost, redisPort, 2000, redisPassword);
         }
 
-        System.out.println("[Chirp] Connected to Redis");
+        try (Jedis jedis = jedisPool.getResource()) {
+            String response = jedis.ping();
+            if ("PONG".equals(response)) {
+                System.out.println("[Chirp] Connected to Redis");
+            } else {
+                throw new RuntimeException(
+                        "[Chirp] Failed to connect to Redis: Unexpected response " + response);
+            }
+        } catch (Exception e) {
+            throw new RuntimeException("[Chirp] Error connecting to Redis: " + e.getMessage(), e);
+        }
+
+        subscribe();
     }
 
     public void cleanup() {
@@ -90,7 +102,6 @@ public class Chirp {
                 PacketSerializer.toJsonString(packet, origin, System.currentTimeMillis(), registry);
         try (Jedis jedis = jedisPool.getResource()) {
             jedis.publish(CHANNEL, serializedJson);
-            System.out.println("[Chirp] Published packet: " + packet.getClass().getSimpleName());
         } catch (Exception e) {
             System.err.println("[Chirp] Error publishing packet: " + e.getMessage());
         }
@@ -115,6 +126,8 @@ public class Chirp {
                             }
                         })
                 .start();
+
+        System.out.println("[Chirp] Subscribed to channel: " + CHANNEL);
     }
 
     private static String generateRandomHex(int length) {

@@ -153,17 +153,51 @@ public class ChirpRegistry {
         for (Method method : listenerClass.getDeclaredMethods()) {
             if (!method.isAnnotationPresent(ChirpHandler.class)) continue;
 
-            if (method.getParameterCount() == 1) {
-                Class<?> paramType = method.getParameterTypes()[0];
-                handlerMethods.add(new HandlerMethod(method, paramType));
-            } else {
-                System.err.println(
-                        "[ChirpRegistry] @ChirpHandler method "
+            if (method.getParameterCount() != 1) {
+                throw new IllegalArgumentException(
+                        "Handler method "
                                 + method.getName()
                                 + " in "
                                 + listenerClass.getName()
-                                + " has invalid parameter count");
+                                + " must have exactly one parameter");
             }
+
+            Class<?> paramType = method.getParameterTypes()[0];
+
+            if (!(paramType.isAssignableFrom(ChirpPacketEvent.class))) {
+                throw new IllegalArgumentException(
+                        "Handler method "
+                                + method.getName()
+                                + " in "
+                                + listenerClass.getName()
+                                + " must accept a ChirpPacketEvent parameter");
+            }
+
+            Type genericParamType = method.getGenericParameterTypes()[0];
+
+            if (!(genericParamType instanceof ParameterizedType)) {
+                throw new IllegalArgumentException(
+                        "Handler method "
+                                + method.getName()
+                                + " in "
+                                + listenerClass.getName()
+                                + " must have a parameterized type");
+            }
+
+            ParameterizedType pType = (ParameterizedType) genericParamType;
+            Type argType = pType.getActualTypeArguments()[0];
+
+            if (!(argType instanceof Class<?>)) {
+                throw new IllegalArgumentException(
+                        "Handler method "
+                                + method.getName()
+                                + " in "
+                                + listenerClass.getName()
+                                + " must have a valid generic type argument");
+            }
+
+            Class<?> genericArgument = (Class<?>) argType;
+            handlerMethods.add(new HandlerMethod(method, genericArgument));
         }
 
         return handlerMethods;

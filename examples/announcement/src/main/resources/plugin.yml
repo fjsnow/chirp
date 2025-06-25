@@ -1,0 +1,8 @@
+name: Announcement
+main: io.fjsn.announcement.AnnouncementPlugin
+version: 1.0.0
+api-version: 1.13
+commands:
+  announce:
+    description: Sends an announcement
+    usage: /announce <message..>

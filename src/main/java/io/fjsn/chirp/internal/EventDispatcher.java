@@ -21,9 +21,9 @@ public class EventDispatcher {
         Map<Object, List<HandlerMethod>> listenerMap = registry.getListeners();
 
         for (Map.Entry<Object, List<HandlerMethod>> entry : listenerMap.entrySet()) {
+
             Object listenerInstance = entry.getKey();
             List<HandlerMethod> handlerMethods = entry.getValue();
-
             for (HandlerMethod handlerMethod : handlerMethods) {
                 Method method = handlerMethod.method;
                 Class<?>[] params = method.getParameterTypes();
