@@ -14,9 +14,12 @@ class AnnouncementPlugin extends JavaPlugin {
 
     @Override
     public void onEnable() {
-        chirp = new Chirp();
-        chirp.scan("io.fjsn.announcement");
-        chirp.connect("localhost", 6379);
+        chirp =
+                new Chirp("announcement")
+                        .debug()
+                        .scan("io.fjsn.announcement")
+                        .connect("localhost", 6379)
+                        .subscribe();
 
         getCommand("announce").setExecutor(new AnnounceCommand(this));
     }

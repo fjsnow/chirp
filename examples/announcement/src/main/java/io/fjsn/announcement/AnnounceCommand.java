@@ -22,7 +22,7 @@ public class AnnounceCommand implements CommandExecutor {
         String message = String.join(" ", args);
         AnnouncementPacket packet = new AnnouncementPacket(message);
 
-        plugin.getChirp().publish(packet, true);
+        plugin.getChirp().publish(packet);
         return true;
     }
 }

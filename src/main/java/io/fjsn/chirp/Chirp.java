@@ -12,31 +12,49 @@ import redis.clients.jedis.JedisPoolConfig;
 
 public class Chirp {
 
-    private static final String CHANNEL = "chirp";
-
+    private final String channel;
     private final String origin;
-    private JedisPool jedisPool;
+    private boolean debug;
 
+    private JedisPool jedisPool;
     private final ChirpRegistry registry;
     private final EventDispatcher eventDispatcher;
 
-    public Chirp() {
-        this(generateRandomHex(16));
+    public Chirp(String channel) {
+        this(channel, generateRandomHex(16));
     }
 
-    public Chirp(String origin) {
+    public Chirp(String channel, String origin) {
+        this.channel = "chirp:" + channel;
         this.origin = origin;
         this.registry = new ChirpRegistry();
         this.registry.registerDefaultConverters();
-
         this.eventDispatcher = new EventDispatcher(registry);
     }
 
-    public void connect(String redisHost, int redisPort) {
-        connect(redisHost, redisPort, null);
+    public String getChannel() {
+        return channel;
     }
 
-    public void connect(String redisHost, int redisPort, String redisPassword) {
+    public String getOrigin() {
+        return origin;
+    }
+
+    public boolean isDebug() {
+        return debug;
+    }
+
+    public Chirp setDebug(boolean debug) {
+        this.debug = debug;
+        return this;
+    }
+
+    public Chirp connect(String redisHost, int redisPort) {
+        connect(redisHost, redisPort, null);
+        return this;
+    }
+
+    public Chirp connect(String redisHost, int redisPort, String redisPassword) {
         JedisPoolConfig redisConfig = new JedisPoolConfig();
         if (redisPassword == null || redisPassword.isEmpty()) {
             this.jedisPool = new JedisPool(redisConfig, redisHost, redisPort, 2000);
@@ -56,7 +74,7 @@ public class Chirp {
             throw new RuntimeException("[Chirp] Error connecting to Redis: " + e.getMessage(), e);
         }
 
-        subscribe();
+        return this;
     }
 
     public void cleanup() {
@@ -67,27 +85,56 @@ public class Chirp {
         registry.cleanup();
     }
 
-    public void scan(String packageName) {
+    public Chirp scan(String packageName) {
         registry.scan(packageName);
+        return this;
     }
 
-    public void registerPacket(Class<?> packetClass) {
+    public Chirp registerPacket(Class<?> packetClass) {
         registry.registerPacket(packetClass);
+        return this;
     }
 
-    public void registerConverter(Class<?> genericType, FieldConverter<?> converter) {
+    public Chirp registerConverter(Class<?> genericType, FieldConverter<?> converter) {
         registry.registerConverter(genericType, converter);
+        return this;
     }
 
-    public void addListener(Class<?> listenerClass) {
+    public Chirp addListener(Class<?> listenerClass) {
         registry.addListener(listenerClass);
+        return this;
+    }
+
+    public Chirp debug() {
+        this.debug = true;
+        return this;
+    }
+
+    public Chirp subscribe() {
+        if (jedisPool == null) {
+            throw new IllegalStateException("JedisPool not initialized. Call setup() first.");
+        }
+
+        new Thread(
+                        () -> {
+                            try (Jedis jedis = jedisPool.getResource()) {
+                                JedisSubscriber subscriber =
+                                        new JedisSubscriber(
+                                                registry, eventDispatcher::dispatchEvent);
+
+                                jedis.subscribe(subscriber, channel);
+                            } catch (Exception e) {
+                                System.err.println(
+                                        "[Chirp] Error subscribing to channel: " + e.getMessage());
+                            }
+                        })
+                .start();
+
+        System.out.println("[Chirp] Subscribed to channel: " + channel);
+        return this;
     }
 
     public void publish(Object packet) {
-        publish(packet, false);
-    }
-
-    public void publish(Object packet, boolean toSelf) {
         if (jedisPool == null) {
             throw new IllegalStateException("JedisPool not initialized. Call setup() first.");
         }
@@ -101,33 +148,10 @@ public class Chirp {
         String serializedJson =
                 PacketSerializer.toJsonString(packet, origin, System.currentTimeMillis(), registry);
         try (Jedis jedis = jedisPool.getResource()) {
-            jedis.publish(CHANNEL, serializedJson);
+            jedis.publish(channel, serializedJson);
         } catch (Exception e) {
             System.err.println("[Chirp] Error publishing packet: " + e.getMessage());
         }
-    }
-
-    public void subscribe() {
-        if (jedisPool == null) {
-            throw new IllegalStateException("JedisPool not initialized. Call setup() first.");
-        }
-
-        new Thread(
-                        () -> {
-                            try (Jedis jedis = jedisPool.getResource()) {
-                                JedisSubscriber subscriber =
-                                        new JedisSubscriber(
-                                                registry, eventDispatcher::dispatchEvent);
-
-                                jedis.subscribe(subscriber, CHANNEL);
-                            } catch (Exception e) {
-                                System.err.println(
-                                        "[Chirp] Error subscribing to channel: " + e.getMessage());
-                            }
-                        })
-                .start();
-
-        System.out.println("[Chirp] Subscribed to channel: " + CHANNEL);
     }
 
     private static String generateRandomHex(int length) {
