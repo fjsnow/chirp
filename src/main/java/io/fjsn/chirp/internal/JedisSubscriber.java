@@ -26,8 +26,10 @@ public class JedisSubscriber extends JedisPubSub {
             JsonObject json = JsonParser.parseString(message).getAsJsonObject();
             Object packet = PacketSerializer.deserialize(json, registry);
             String origin = json.get("origin").getAsString();
+            long sent = json.get("sent").getAsLong();
 
-            ChirpPacketEvent<Object> event = new ChirpPacketEvent<>(packet, origin);
+            ChirpPacketEvent<Object> event =
+                    new ChirpPacketEvent<>(packet, origin, sent, System.currentTimeMillis());
             eventConsumer.accept(event);
         } catch (Exception e) {
             System.err.println("[ChirpJedisSubscriber] Error handling message: " + e.getMessage());

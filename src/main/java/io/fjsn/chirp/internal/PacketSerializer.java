@@ -15,13 +15,15 @@ public class PacketSerializer {
         throw new UnsupportedOperationException("PacketSerializer cannot be instantiated");
     }
 
-    public static JsonObject serialize(Object packet, String origin, ChirpRegistry registry) {
+    public static JsonObject serialize(
+            Object packet, String origin, long sent, ChirpRegistry registry) {
         if (packet == null) throw new IllegalArgumentException("Packet cannot be null");
 
         JsonObject json = new JsonObject();
         String type = packet.getClass().getSimpleName().toUpperCase();
         json.addProperty("type", type);
         json.addProperty("origin", origin);
+        json.addProperty("sent", sent);
 
         JsonObject data = new JsonObject();
 
@@ -38,11 +40,11 @@ public class PacketSerializer {
                     continue;
                 }
 
+                String typeKey = ChirpRegistry.normalizeTypeName(field.getType());
+
                 @SuppressWarnings("unchecked")
                 FieldConverter<Object> converter =
-                        (FieldConverter<Object>)
-                                registry.getConverterRegistry()
-                                        .get(field.getType().getSimpleName());
+                        (FieldConverter<Object>) registry.getConverterRegistry().get(typeKey);
                 if (converter == null) {
                     throw new IllegalArgumentException(
                             "No converter registered for field type: "
@@ -82,15 +84,16 @@ public class PacketSerializer {
 
             String fieldName = field.getName();
 
-            if (!data.has(fieldName) || data.get(fieldName).isJsonNull()) {
+            if ((!data.has(fieldName) || data.get(fieldName).isJsonNull())
+                    && !field.getType().isPrimitive()) {
                 field.set(packet, null);
                 continue;
             }
 
             String serializedValue = data.get(fieldName).getAsString();
+            String typeKey = ChirpRegistry.normalizeTypeName(field.getType());
 
-            FieldConverter<?> converter =
-                    registry.getConverterRegistry().get(field.getType().getSimpleName());
+            FieldConverter<?> converter = registry.getConverterRegistry().get(typeKey);
             if (converter == null) {
                 throw new IllegalArgumentException(
                         "No converter registered for field type: "
@@ -110,8 +113,9 @@ public class PacketSerializer {
         return deserialize(json, registry);
     }
 
-    public static String toJsonString(Object packet, String origin, ChirpRegistry registry) {
-        JsonObject json = serialize(packet, origin, registry);
+    public static String toJsonString(
+            Object packet, String origin, long sent, ChirpRegistry registry) {
+        JsonObject json = serialize(packet, origin, sent, registry);
         return json.toString();
     }
 }

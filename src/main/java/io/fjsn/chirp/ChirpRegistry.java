@@ -5,6 +5,16 @@ import io.fjsn.chirp.annotation.ChirpHandler;
 import io.fjsn.chirp.annotation.ChirpListener;
 import io.fjsn.chirp.annotation.ChirpPacket;
 import io.fjsn.chirp.converter.FieldConverter;
+import io.fjsn.chirp.converter.impl.BooleanConverter;
+import io.fjsn.chirp.converter.impl.ByteConverter;
+import io.fjsn.chirp.converter.impl.CharacterConverter;
+import io.fjsn.chirp.converter.impl.DoubleConverter;
+import io.fjsn.chirp.converter.impl.FloatConverter;
+import io.fjsn.chirp.converter.impl.IntegerConverter;
+import io.fjsn.chirp.converter.impl.LongConverter;
+import io.fjsn.chirp.converter.impl.ShortConverter;
+import io.fjsn.chirp.converter.impl.StringConverter;
+import io.fjsn.chirp.converter.impl.UUIDConverter;
 import io.fjsn.chirp.internal.HandlerMethod;
 
 import org.reflections.Reflections;
@@ -17,12 +27,27 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 public class ChirpRegistry {
 
     private final Map<String, Class<?>> packetRegistry;
     private final Map<String, FieldConverter<?>> converterRegistry;
     private final Map<Object, List<HandlerMethod>> listeners;
+
+    public static String normalizeTypeName(Class<?> clazz) {
+        if (clazz.isPrimitive()) {
+            if (clazz == byte.class) return "BYTE";
+            if (clazz == short.class) return "SHORT";
+            if (clazz == int.class) return "INTEGER";
+            if (clazz == long.class) return "LONG";
+            if (clazz == float.class) return "FLOAT";
+            if (clazz == double.class) return "DOUBLE";
+            if (clazz == boolean.class) return "BOOLEAN";
+            if (clazz == char.class) return "CHARACTER";
+        }
+        return clazz.getSimpleName().toUpperCase();
+    }
 
     public ChirpRegistry() {
         this.packetRegistry = new HashMap<>();
@@ -40,6 +65,19 @@ public class ChirpRegistry {
 
     public Map<Object, List<HandlerMethod>> getListeners() {
         return listeners;
+    }
+
+    public void registerDefaultConverters() {
+        registerConverter(Boolean.class, new BooleanConverter());
+        registerConverter(Byte.class, new ByteConverter());
+        registerConverter(Character.class, new CharacterConverter());
+        registerConverter(Double.class, new DoubleConverter());
+        registerConverter(Float.class, new FloatConverter());
+        registerConverter(Integer.class, new IntegerConverter());
+        registerConverter(Long.class, new LongConverter());
+        registerConverter(Short.class, new ShortConverter());
+        registerConverter(String.class, new StringConverter());
+        registerConverter(UUID.class, new UUIDConverter());
     }
 
     public void registerPacket(Class<?> packetClass) {
@@ -69,7 +107,7 @@ public class ChirpRegistry {
             throw new IllegalArgumentException("Converter cannot be null");
         }
 
-        String type = genericType.getSimpleName().toUpperCase();
+        String type = normalizeTypeName(genericType);
         if (converterRegistry.containsKey(type)) {
             throw new IllegalArgumentException(
                     "Converter type '" + type + "' is already registered");
@@ -153,7 +191,7 @@ public class ChirpRegistry {
         return null;
     }
 
-    public void scanAndRegister(String packageName) {
+    public void scan(String packageName) {
         Reflections reflections = new Reflections(packageName, Scanners.TypesAnnotated);
 
         for (Class<?> packetClass : reflections.getTypesAnnotatedWith(ChirpPacket.class)) {

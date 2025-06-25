@@ -8,7 +8,8 @@ public class ExamplePlugin {
 
     public void onEnable() {
         chirp = new Chirp("hub-1");
-        chirp.scanAndRegister("io.fjsn.chirp.example");
+        chirp.scan("io.fjsn.chirp.example");
+        chirp.connect("127.0.0.1", 12345);
 
         ExamplePacket packet = new ExamplePacket("Player1");
         chirp.publish(packet);

@@ -8,6 +8,7 @@ import io.fjsn.chirp.internal.PacketSerializer;
 
 import redis.clients.jedis.Jedis;
 import redis.clients.jedis.JedisPool;
+import redis.clients.jedis.JedisPoolConfig;
 
 public class Chirp {
 
@@ -26,11 +27,23 @@ public class Chirp {
     public Chirp(String origin) {
         this.origin = origin;
         this.registry = new ChirpRegistry();
+        this.registry.registerDefaultConverters();
+
         this.eventDispatcher = new EventDispatcher(registry);
     }
 
-    public void setup(String redisHost, int redisPort) {
-        this.jedisPool = new JedisPool(redisHost, redisPort);
+    public void connect(String redisHost, int redisPort) {
+        connect(redisHost, redisPort, null);
+    }
+
+    public void connect(String redisHost, int redisPort, String redisPassword) {
+        JedisPoolConfig redisConfig = new JedisPoolConfig();
+        if (redisPassword == null || redisPassword.isEmpty()) {
+            this.jedisPool = new JedisPool(redisConfig, redisHost, redisPort, 2000);
+        } else {
+            this.jedisPool = new JedisPool(redisConfig, redisHost, redisPort, 2000, redisPassword);
+        }
+
         System.out.println("[Chirp] Connected to Redis");
     }
 
@@ -42,8 +55,8 @@ public class Chirp {
         registry.cleanup();
     }
 
-    public void scanAndRegister(String packageName) {
-        registry.scanAndRegister(packageName);
+    public void scan(String packageName) {
+        registry.scan(packageName);
     }
 
     public void registerPacket(Class<?> packetClass) {
@@ -59,6 +72,10 @@ public class Chirp {
     }
 
     public void publish(Object packet) {
+        publish(packet, false);
+    }
+
+    public void publish(Object packet, boolean toSelf) {
         if (jedisPool == null) {
             throw new IllegalStateException("JedisPool not initialized. Call setup() first.");
         }
@@ -69,7 +86,8 @@ public class Chirp {
             throw new IllegalArgumentException("Packet must be annotated with @ChirpPacket");
         }
 
-        String serializedJson = PacketSerializer.toJsonString(packet, origin, registry);
+        String serializedJson =
+                PacketSerializer.toJsonString(packet, origin, System.currentTimeMillis(), registry);
         try (Jedis jedis = jedisPool.getResource()) {
             jedis.publish(CHANNEL, serializedJson);
             System.out.println("[Chirp] Published packet: " + packet.getClass().getSimpleName());
