@@ -14,7 +14,7 @@ Chirp chirp = Chirp.builder()
                     .channel("announcement")
                     .origin("server-1")
                     .scan("your.main.package")
-                    // rather, if you don't want to use reflection
+                    // rather, if you don't want to automatically register these, or if they have scan set to false
                     // .packet(ExamplePacket.class)
                     // .listener(new ExamplePacketListener())
                     // .converter(Integer.class, new IntegerConverter)
@@ -34,6 +34,12 @@ public class ExamplePacket {
         this.random = random;
     }
 }
+```
+
+You can now send packets using `Chirp#publish`
+
+```java
+chirp.publish(new ExamplePacket("Hello, world!"));
 ```
 
 Setup a listener by annotating a class with `@ChirpListener`, then register handler method(s) with `@ChirpHandler`.
@@ -77,6 +83,7 @@ public class IntegerConverter implements FieldConverter<Integer> {
 The recommended way for most projects using Chirp is to use the scan, which will automatically register packets, listeners and converters. However, if your listener or converters required dependencies to be injected Chirp cannot be automatically registered - Rather, set `scan` to false in `@ChirpListener` or `@ChirpConverter` respectively where you don't want them to be automatically picked up, and they will be ignored and you can manually register them, listeners or converters
 
 ```java
+// ExampleListener requires a JavaPlugin instance, therefore we can not automatically register it.
+// If `scan` is not set to false, Chirp will throw an exception if it cannot find a no-args constructor.
 .scan("your.main.package")
-.listener(new ExampleListener(this)) // ExampleListener requires a JavaPlugin instance, therefore we can not automatically register it.
-```
+.listener(new ExampleListener(this))```
