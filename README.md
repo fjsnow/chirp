@@ -1,85 +1,225 @@
 ## 🐦 chirp
 
-A simple annotation-driven Redis Pub/Sub packet system powered by reflection. Designed for Minecraft servers, but compatible with any Java application.
+A simple annotation-driven Redis Pub/Sub packet system powered by reflection.
+
+Designed for Minecraft servers, but compatible with any Java application.
 
 ### Installation
 
-You can use Chirp with Maven or Gradle via Jitpack. The latest version is `1.1`. An example for Maven is provided below:
+You can install Chirp via Jitpack in your favourite package manager below. The latest version is `1.1.0`.
 
-#### Maven
+<details>
+<summary><strong>Maven</strong></summary>
 
-```xml
 <repositories>
     <repository>
         <id>jitpack.io</id>
         <url>https://jitpack.io</url>
     </repository>
 </repositories>
-<dependencies>
-    <dependency>
-        <groupId>com.github.fjsnow</groupId>
-        <artifactId>chirp</artifactId>
-        <version>1.1</version>
-        <scope>compile</scope>
-    </dependency>
-</dependencies>
+
+<dependency>
+    <groupId>io.fjsn</groupId>
+    <artifactId>chirp</artifactId>
+    <version>1.1.0</version>
+</dependency>
+
+<details>
+<summary>Optional: Shade Chirp to avoid conflicts</summary>
+
+If you're bundling Chirp into your own library or application, you can use the Maven Shade Plugin to relocate its packages and prevent classpath conflicts:
+
+```xml
+<build>
+    <plugins>
+        <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-shade-plugin</artifactId>
+            <version>3.4.1</version>
+            <executions>
+                <execution>
+                    <phase>package</phase>
+                    <goals>
+                        <goal>shade</goal>
+                    </goals>
+                    <configuration>
+                        <relocations>
+                            <relocation>
+                                <pattern>io.fjsn.chirp</pattern>
+                                <shadedPattern>com.yourdomain.shaded.chirp</shadedPattern>
+                            </relocation>
+                        </relocations>
+                    </configuration>
+                </execution>
+            </executions>
+        </plugin>
+    </plugins>
+</build>
 ```
 
-You will need to shade in chirp into your project. Relocate it's package to include `shaded` otherwise the scan feature will try re-register the default converters.
+</details>
+</details>
+
+<details>
+<summary><strong>Gradle (Groovy DSL)</strong></summary>
+
+```groovy
+repositories {
+    maven { url 'https://jitpack.io' }
+}
+
+dependencies {
+    implementation 'io.fjsn:chirp:1.1.0'
+}
+```
+
+<details>
+<summary>Optional: Shade Chirp to avoid conflicts</summary>
+
+Requires the [Shadow plugin](https://imperceptiblethoughts.com/shadow/):
+
+```groovy
+shadowJar {
+    relocate 'io.fjsn.chirp', 'com.yourdomain.shaded.chirp'
+}
+```
+
+</details>
+</details>
+
+<details>
+<summary><strong>Gradle (Kotlin DSL)</strong></summary>
+
+```kotlin
+repositories {
+    maven("https://jitpack.io")
+}
+
+dependencies {
+    implementation("io.fjsn:chirp:1.0.0")
+}
+```
+
+<details>
+<summary>Optional: Shade Chirp to avoid conflicts</summary>
+
+Requires the [Shadow plugin](https://imperceptiblethoughts.com/shadow/):
+
+```kotlin
+tasks.named<ShadowJar>("shadowJar") {
+    relocate("io.fjsn.chirp", "com.yourdomain.shaded.chirp")
+}
+```
+
+</details>
+</details>
+
 
 ### Quick start
 
-In your main function, create an instance of Chirp. Optionally use `scan` which will automatically detect and register packets, listeners, and converters.
+#### Setting Up Chirp
 
-`channel` is required to allow multiple different programs to use the same Redis server without conflicts, and `origin` is optional but often useful to know _where_ a packet originated from - you may want to set it as `Bukkit#getServerName()` or similar. If you don't provide it, a random ID will be assigned to your server. Chirp allows you to repeat origins as they in the end are simply treated as strings - But this may have unintended side effects, such as packets being ignored as they are considered to be from the same origin.
+To get started with Chirp, create an instance using the builder pattern. This is typically done in your main function, such as:
+
+- `main()` in a standard Java application
+- `onEnable()` in a Spigot plugin
+
+Here’s how to configure it step by step:
+
+1. **Create the builder with `Chirp.builder()`**
+
+2. **Set the `channel`**
+   This is a **required** string used to prevent multiple instances of Chirp from interferring with each other.
+   - Do this with: `.channel("your-plugin-name")`
+
+3. **Set the `origin` (optional but recommended)**
+   A unique ID (e.g., `"server-1"` or `"lobby-1"`) that identifies your server instance. Useful when filtering or tracking sources.
+   - Do this with: `.origin("lobby-1")`
+
+4. **Register packets, listeners, and converters (More on what these are below)**
+   You can do this manually or automatically:
+   - Manually:
+     - `.packet(YourPacket.class)`
+     - `.listener(new YourPacketListener())`
+     - `.converter(YourType.class, new YourTypeConverter())`
+   - Or automatically:
+     - `.scan("your.package.name")` — Detects all annotated classes below the given package. (See caveats at the bottom)
+
+5. **Configure Redis connection**
+   Provide your Redis host and port:
+   - `.redis("localhost", 6379)`
+   - Or with password: `.redis("localhost", 6379, "yourPassword")`
+
+6. **Optionally, enable `debug` mode**
+   This will log out when packets, listeners and converters get registered, as well as any outgoing and incoming packets. Useful during development.
+   - `.debug(true)`
+
+7. **Finish setup with `.build()`**
+
+##### Example
 
 ```java
-// using builder
 Chirp chirp = Chirp.builder()
-                    // enable debug logging, useful for development
-                    // .debug(true)
-                    .channel("announcement")
-                    .origin("server-1")
-                    .scan("your.main.package")
-                    // rather, if you don't want to automatically register these / they have scan set to false
-                    // .packet(ExamplePacket.class)
-                    // .listener(new ExamplePacketListener())
-                    // .converter(Integer.class, new IntegerConverter)
-                    .redis("localhost", 6379)
-                    .build();
+    .channel("announcements")  // required: channel
+    .origin("server-1") // optional: this instance's id
+    .scan("io.fjsn.plugin") // optional: scan automatically to register packets, listeners, and converters
+    .redis("localhost", 6379) // required: redis connection info
+    .build(); // build's and connects chirp to redis!
 ```
 
-Create a packet class and annotate it with `@ChirpPacket`. Annotate any fields you want transferred using `@ChirpField`.
+Now you're ready to start sending and receiving packets!
+
+#### Creating a packet
+
+To create a packet, simply create a class and annotate it with `@ChirpPacket`. Any field you want to be transferred must be annotated with `@ChirpField`.
+Notably, you must also provide a no-args constructor, and fields must be non-final.
+
+##### Example
 
 ```java
 @ChirpPacket
 public class ExamplePacket {
+
     @ChirpField private String random;
     public String getRandom() { return random; }
 
+    public ExamplePacket() {}
     public ExamplePacket(String random) {
         this.random = random;
     }
 }
 ```
 
-You can now send packets using `Chirp#publish`
+If you have scanning enabled and this class lives within the package, Chirp will automatically register this packet on load. Otherwise, register it manually using `.packet(ExamplePacket.class)` on your `ChirpBuilder`.
+
+#### Sending a packet
+
+To send a packet, simply create an instance of your packet and publish it via `Chirp#publish`
+
+##### Example
 
 ```java
-chirp.publish(new ExamplePacket("Hello, world!"));
+ExamplePacket packet = new ExamplePacket("random string :P");
+chirp.publish(packet);
 ```
 
-Note that although the server itself will recieve back the same packet, by default it'll not be processed by the packet handlers. If you want to recieve packets, provide `true` for self as a second argument to `publish`:
+> [!NOTE]
+> `Chirp#publish` will broadcast out your packet, but that means the broadcasting server will also receive it! The sane default in Chirp is the broadcasting server ignores this incoming packet. To override this, passing `true` as a second argument in `Chirp#publish` will make handlers process it on the broadcasting server.
 
-```java
-chirp.publish(new ExamplePacket("Hello, world!"), true);
-```
+#### Listening to packets
 
-Setup a listener by annotating a class with `@ChirpListener`, then register handler method(s) with `@ChirpHandler`.
+To listen and handle incoming packets, create and annotate a class with `@ChirpListener`, then annotate handler method(s) with `@ChirpHandler`.
 
-A handler method expects one argument of type `ChirpPacketEvent<T>`, with `T` being the event to subscribe too.
+Each handler method expects on argument of type `ChirpPacketEvent<T>`, a wrapper around a generic packet with attached metadata.
 
-You can extract the recieved packet using `ChirpPacketEvent#getPacket`, and there is other important information contained too in the event, notably `#getOrigin`, `#getSent`, `#getRecieved`, and `#getLatency`.
+`ChirpPacketEvent` contains important information regarding your event, notably:
+- `ChirpPacketEvent#getPacket` - Extracts the packet (type `T`)
+- `ChirpPacketEvent#getOrigin` - Extract the server where the packet originated from
+- `ChirpPacketEvent#getSent` - Gets the timestamp in milliseconds at which the packet was sent
+- `ChirpPacketEvent#getReceived` - Gets the timestamp in milliseconds at which the packet was received
+- `ChirpPacketEvent#getLatency` - Gets the latency of how long it took for the packet to be received
+
+##### Example
 
 ```java
 @ChirpListener
@@ -88,18 +228,30 @@ public class ExamplePacketListener {
     @ChirpHandler
     public void onExamplePacket(ChirpPacketEvent<ExamplePacket> event) {
         ExamplePacket packet = event.getPacket();
-        System.out.println("Recieved: " + packet.getRandom());
+        System.out.println("The random text was " + packet.getRandom());
+        System.out.println("It took " + packet.getLatency() + "ms for us to receive it!");
     }
 
 }
 ```
 
+Once again, if you have scanning enabled and this class lives within the package, Chirp will automatically register this listener on load. Otherwise, register it manually using `.listener(new ExamplePacketListener())` on your `ChirpBuilder`.
+
 > [!WARNING]
 > If you are using Chirp on a Minecraft server, be aware that the packet handlers do not run on the main thread. If you need to perform actions that require the main thread (like interacting with Bukkit APIs), you will need to schedule those actions using `Bukkit#getScheduler().runTask(...)` or similar methods.
 
-Chirp fields will automatically work with all primitive data types and their boxed versions, as well as `String` and `UUID`. If you want to use other types, you will need to register a custom converter. Lists, Sets, and Maps are also supported out the box if they contain types with a registered converter, and nested Objects will be serialized. This lets you create complex packet structures easily.
+During transfer, Chirp needs to serialise your packet to a String then later deserialise it. By default, Chirp comes with a range of converters for all of Java's primitive types and their boxed equivalents. Due to their popularity, Chirp also has converters for `String` and `UUID`.
 
-Todo so, annotate a class with `@ChirpConverter` and implement `FieldConverter<T>` on it. You will simply need to provide a `serialize` and `deserialize` method, converting to and from `T` and `String` respectively.
+Chirp can also automatically serialise List, Set and Maps, and nested Objects, as long as they're made up of types that have a converter registered.
+
+Chirp fields will automatically work with all primitive data types and their boxed versions, as well as `String` and `UUID`. If you want to use other types, you will need to register a custom converter.
+>>>>>>> f14d6a56fdbba92079d9a1c458b227533e8df2b4
+
+To do so, create and annotate a class with `@ChirpConverter` and implement `FieldConverter<T>` on it.
+
+You will simply need to provide a `serialize` and `deserialize` method, converting to and from `T` and `String` respectively.
+
+##### Example
 
 ```java
 @ChirpConverter
@@ -114,17 +266,24 @@ public class IntegerConverter implements FieldConverter<Integer> {
 }
 ```
 
-### Scan
+Once again, if you have scanning enabled and this class lives within the package, Chirp will automatically register this converter on load. Otherwise, register it manually using `.converter(Integer.class, new IntegerListener())` on your `ChirpBuilder`.
 
-The recommended way for most projects using Chirp is to use the scan, which will automatically register packets, listeners and converters. If you want to opt-in to scanning overall but not for specific classes, you can set `scan` to false on the annotation itself. This may be required if you have classes that require a constructor with arguments, as Chirp will not be able to instantiate them automatically.
+### Scanner
+
+The easiest way for small projects using Chirp is to use the scanner, which will automatically register packets, listeners and converters.
+
+If you want to opt-in to scanning overall but not for specific packets, listeners or converters (for example if they have constructors with arguments), you can set `scan` to false on the specific annotation itself.
+
+##### Example
 
 ```java
-
 @ChirpListener(scan = false)
 public class ExampleListener { /* ... */ }
 
-// ExampleListener requires a JavaPlugin instance, therefore we can not automatically register it.
 chirp
-    .scan("your.main.package")
+    .scan("io.fjsn.plugin")
     .listener(new ExampleListener(this))
 ```
+
+> [!WARNING]
+> While scanning may seem easy at first, if you use any sort of obfuscation or your package gets relocated, it will very likely break the scanner. In this case, manual registration would be required.
