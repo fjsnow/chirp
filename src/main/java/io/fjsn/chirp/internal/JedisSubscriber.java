@@ -26,7 +26,7 @@ public class JedisSubscriber extends JedisPubSub {
 
     @Override
     public void onMessage(String channel, String message) {
-        ChirpLogger.debug("Recieved message on channel '" + channel + "': " + message);
+        ChirpLogger.debug("Received message on channel '" + channel + "': " + message);
 
         try {
             JsonObject json = JsonParser.parseString(message).getAsJsonObject();
