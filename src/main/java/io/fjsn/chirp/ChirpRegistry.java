@@ -29,6 +29,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 public class ChirpRegistry {
 
@@ -232,7 +233,10 @@ public class ChirpRegistry {
     public void scan(String packageName) {
         Reflections reflections = new Reflections(packageName, Scanners.TypesAnnotated);
 
-        for (Class<?> packetClass : reflections.getTypesAnnotatedWith(ChirpPacket.class)) {
+        for (Class<?> packetClass :
+                reflections.getTypesAnnotatedWith(ChirpPacket.class).stream()
+                        .filter(c -> !c.getPackage().getName().contains("shaded"))
+                        .collect(Collectors.toList())) {
             ChirpPacket chirpPacketAnnotation = packetClass.getAnnotation(ChirpPacket.class);
             if (!chirpPacketAnnotation.scan()) return;
 
@@ -247,7 +251,11 @@ public class ChirpRegistry {
             }
         }
 
-        for (Class<?> converterClass : reflections.getTypesAnnotatedWith(ChirpConverter.class)) {
+        for (Class<?> converterClass :
+                reflections.getTypesAnnotatedWith(ChirpConverter.class).stream()
+                        .filter(c -> !c.getPackage().getName().contains("shaded"))
+                        .collect(Collectors.toList())) {
+
             ChirpConverter chirpConverterAnnotation =
                     converterClass.getAnnotation(ChirpConverter.class);
             if (!chirpConverterAnnotation.scan()) return;
@@ -280,7 +288,11 @@ public class ChirpRegistry {
             }
         }
 
-        for (Class<?> listenerClass : reflections.getTypesAnnotatedWith(ChirpListener.class)) {
+        for (Class<?> listenerClass :
+                reflections.getTypesAnnotatedWith(ChirpListener.class).stream()
+                        .filter(c -> !c.getPackage().getName().contains("shaded"))
+                        .collect(Collectors.toList())) {
+
             ChirpListener chirpListenerAnnotation =
                     listenerClass.getAnnotation(ChirpListener.class);
             if (!chirpListenerAnnotation.scan()) return;
