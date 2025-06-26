@@ -4,7 +4,7 @@
 
   <modelVersion>4.0.0</modelVersion>
 
-  <groupId>io.fjsn.chirp</groupId>
+  <groupId>io.fjsn</groupId>
   <artifactId>chirp</artifactId>
   <version>1.0-SNAPSHOT</version>
   <packaging>jar</packaging>

@@ -5,12 +5,12 @@
 
   <modelVersion>4.0.0</modelVersion>
 
-  <groupId>io.fjsn.chirp</groupId>
-  <artifactId>chirp-announcement</artifactId>
+  <groupId>io.fjsn</groupId>
+  <artifactId>chirp-announcement-example</artifactId>
   <version>1.0-SNAPSHOT</version>
   <packaging>jar</packaging>
 
-  <name>chirp-announcement</name>
+  <name>chirp-announcement-example</name>
   <url>http://maven.apache.org</url>
 
   <repositories>
@@ -21,9 +21,8 @@
   </repositories>
 
   <dependencies>
-    <!-- Assuming 'chirp' artifact is available in your repo, else provide it -->
     <dependency>
-      <groupId>io.fjsn.chirp</groupId>
+      <groupId>io.fjsn</groupId>
       <artifactId>chirp</artifactId>
       <version>1.0-SNAPSHOT</version>
     </dependency>
@@ -58,7 +57,7 @@
               <relocations>
                 <relocation>
                   <pattern>io.fjsn.chirp</pattern>
-                  <shadedPattern>io.fjsn.chirp.shaded</shadedPattern>
+                  <shadedPattern>io.fjsn.announcement.shaded</shadedPattern>
                 </relocation>
               </relocations>
               <minimizeJar>true</minimizeJar>
