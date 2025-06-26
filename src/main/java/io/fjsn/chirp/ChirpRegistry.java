@@ -37,6 +37,29 @@ public class ChirpRegistry {
     private final Map<String, Class<?>> packetRegistry;
     private final Map<Object, List<HandlerMethod>> listenerRegistry;
 
+    public static String normalizeTypeName(Type type) {
+        if (type instanceof Class<?> clazz) {
+            return normalizeTypeName(clazz);
+        }
+
+        if (type instanceof ParameterizedType pt) {
+            StringBuilder builder = new StringBuilder();
+
+            builder.append(normalizeTypeName(pt.getRawType()));
+
+            builder.append("<");
+            Type[] args = pt.getActualTypeArguments();
+            for (int i = 0; i < args.length; i++) {
+                builder.append(normalizeTypeName(args[i]));
+                if (i < args.length - 1) builder.append(",");
+            }
+            builder.append(">");
+            return builder.toString().toUpperCase();
+        }
+
+        return type.getTypeName().toUpperCase();
+    }
+
     public static String normalizeTypeName(Class<?> clazz) {
         if (clazz.isPrimitive()) {
             if (clazz == byte.class) return "BYTE";

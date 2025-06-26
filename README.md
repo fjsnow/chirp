@@ -4,7 +4,7 @@ A simple annotation-driven Redis Pub/Sub packet system powered by reflection. De
 
 ### Installation
 
-You can use Chirp with Maven or Gradle via Jitpack. The latest version is `1.0`. An example for Maven is provided below:
+You can use Chirp with Maven or Gradle via Jitpack. The latest version is `1.1`. An example for Maven is provided below:
 
 #### Maven
 
@@ -19,7 +19,7 @@ You can use Chirp with Maven or Gradle via Jitpack. The latest version is `1.0`.
     <dependency>
         <groupId>com.github.fjsnow</groupId>
         <artifactId>chirp</artifactId>
-        <version>1.0</version>
+        <version>1.1</version>
         <scope>compile</scope>
     </dependency>
 </dependencies>
@@ -97,7 +97,7 @@ public class ExamplePacketListener {
 > [!WARNING]
 > If you are using Chirp on a Minecraft server, be aware that the packet handlers do not run on the main thread. If you need to perform actions that require the main thread (like interacting with Bukkit APIs), you will need to schedule those actions using `Bukkit#getScheduler().runTask(...)` or similar methods.
 
-Chirp fields will automatically work with all primitive data types and their boxed versions, as well as `String` and `UUID`. If you want to use other types, you will need to register a custom converter.
+Chirp fields will automatically work with all primitive data types and their boxed versions, as well as `String` and `UUID`. If you want to use other types, you will need to register a custom converter. Lists, Sets, and Maps are also supported out the box if they contain types with a registered converter, and nested Objects will be serialized. This lets you create complex packet structures easily.
 
 Todo so, annotate a class with `@ChirpConverter` and implement `FieldConverter<T>` on it. You will simply need to provide a `serialize` and `deserialize` method, converting to and from `T` and `String` respectively.
 
