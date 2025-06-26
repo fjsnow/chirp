@@ -1,6 +1,6 @@
 ## 🐦 chirp
 
-Simple reflection-based annotation-based redis pub sub packet system. Built in mind for Minecraft servers, but should work with any Java program.
+A simple annotation-driven Redis Pub/Sub packet system powered by reflection. Designed for Minecraft servers, but compatible with any Java application.
 
 ### Installation
 
