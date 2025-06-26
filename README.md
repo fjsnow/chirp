@@ -9,8 +9,10 @@ Designed for Minecraft servers, but compatible with any Java application.
 You can install Chirp via Jitpack in your favourite package manager below. The latest version is `1.1.0`.
 
 <details>
+
 <summary><strong>Maven</strong></summary>
 
+```xml
 <repositories>
     <repository>
         <id>jitpack.io</id>
@@ -23,6 +25,7 @@ You can install Chirp via Jitpack in your favourite package manager below. The l
     <artifactId>chirp</artifactId>
     <version>1.1.0</version>
 </dependency>
+```
 
 <details>
 <summary>Optional: Shade Chirp to avoid conflicts</summary>
@@ -56,7 +59,6 @@ If you're bundling Chirp into your own library or application, you can use the M
     </plugins>
 </build>
 ```
-
 </details>
 </details>
 
