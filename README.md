@@ -244,9 +244,6 @@ During transfer, Chirp needs to serialise your packet to a String then later des
 
 Chirp can also automatically serialise List, Set and Maps, and nested Objects, as long as they're made up of types that have a converter registered.
 
-Chirp fields will automatically work with all primitive data types and their boxed versions, as well as `String` and `UUID`. If you want to use other types, you will need to register a custom converter.
->>>>>>> f14d6a56fdbba92079d9a1c458b227533e8df2b4
-
 To do so, create and annotate a class with `@ChirpConverter` and implement `FieldConverter<T>` on it.
 
 You will simply need to provide a `serialize` and `deserialize` method, converting to and from `T` and `String` respectively.
