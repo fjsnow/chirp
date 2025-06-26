@@ -28,6 +28,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.logging.Level;
 
 public class ChirpRegistry {
 
@@ -96,7 +97,7 @@ public class ChirpRegistry {
         }
 
         converterRegistry.put(type, converter);
-        System.out.println("[ChirpRegistry] Registered converter: " + type);
+        Chirp.CHIRP_LOGGER.log(Level.FINE, "Registered converter: " + type);
     }
 
     public void registerPacket(Class<?> packetClass) {
@@ -114,7 +115,7 @@ public class ChirpRegistry {
         }
 
         packetRegistry.put(type, packetClass);
-        System.out.println("[ChirpRegistry] Registered packet: " + type);
+        Chirp.CHIRP_LOGGER.log(Level.FINE, "Registered packet: " + type);
     }
 
     public void registerListener(Object listenerInstance) {
@@ -137,14 +138,13 @@ public class ChirpRegistry {
         List<HandlerMethod> handlerMethods = findHandlerMethods(listenerClass);
 
         if (handlerMethods.isEmpty()) {
-            System.err.println(
-                    "[ChirpRegistry] Listener "
-                            + listenerClass.getName()
-                            + " has no @ChirpHandler methods");
+            Chirp.CHIRP_LOGGER.log(
+                    Level.WARNING,
+                    "Listener " + listenerClass.getName() + " has no @ChirpHandler methods");
         }
 
         listenerRegistry.put(listenerInstance, handlerMethods);
-        System.out.println("[ChirpRegistry] Registered listener: " + listenerClass.getSimpleName());
+        Chirp.CHIRP_LOGGER.log(Level.FINE, "Registered listener: " + listenerClass.getSimpleName());
     }
 
     private List<HandlerMethod> findHandlerMethods(Class<?> listenerClass) {
@@ -232,8 +232,8 @@ public class ChirpRegistry {
             try {
                 registerPacket(packetClass);
             } catch (IllegalArgumentException e) {
-                System.err.println(
-                        "[ChirpRegistry] Failed to register packet: "
+                throw new RuntimeException(
+                        "Failed to register packet: "
                                 + packetClass.getName()
                                 + " - "
                                 + e.getMessage());
@@ -265,8 +265,8 @@ public class ChirpRegistry {
 
                 registerConverter(convertedType, converterInstance);
             } catch (Exception e) {
-                System.err.println(
-                        "[ChirpRegistry] Failed to register converter: "
+                throw new RuntimeException(
+                        "Failed to register converter: "
                                 + converterClass.getName()
                                 + " - "
                                 + e.getMessage());
@@ -282,8 +282,8 @@ public class ChirpRegistry {
                 Object listenerInstance = listenerClass.getDeclaredConstructor().newInstance();
                 registerListener(listenerInstance);
             } catch (Exception e) {
-                System.err.println(
-                        "[ChirpRegistry] Failed to register listener: "
+                throw new RuntimeException(
+                        "Failed to register listener: "
                                 + listenerClass.getName()
                                 + " - "
                                 + e.getMessage());
@@ -295,6 +295,6 @@ public class ChirpRegistry {
         packetRegistry.clear();
         listenerRegistry.clear();
         converterRegistry.clear();
-        System.out.println("[ChirpRegistry] Cleared all registrations");
+        Chirp.CHIRP_LOGGER.log(Level.FINE, "Cleared all registrations");
     }
 }

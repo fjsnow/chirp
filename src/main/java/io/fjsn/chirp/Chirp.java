@@ -11,8 +11,11 @@ import redis.clients.jedis.JedisPool;
 import redis.clients.jedis.JedisPoolConfig;
 
 import java.util.logging.Level;
+import java.util.logging.Logger;
 
 public class Chirp {
+
+    public static Logger CHIRP_LOGGER = Logger.getLogger("Chirp");
 
     public static ChirpBuilder builder() {
         return new ChirpBuilder();
@@ -72,13 +75,13 @@ public class Chirp {
         try (Jedis jedis = jedisPool.getResource()) {
             String response = jedis.ping();
             if ("PONG".equals(response)) {
-                System.out.println("[Chirp] Connected to Redis");
+                CHIRP_LOGGER.info("Connected to Redis");
             } else {
                 throw new RuntimeException(
-                        "[Chirp] Failed to connect to Redis: Unexpected response " + response);
+                        "Failed to connect to Redis: Unexpected response " + response);
             }
         } catch (Exception e) {
-            throw new RuntimeException("[Chirp] Error connecting to Redis: " + e.getMessage(), e);
+            throw new RuntimeException("Error connecting to Redis: " + e.getMessage(), e);
         }
     }
 
@@ -120,13 +123,13 @@ public class Chirp {
 
                                 jedis.subscribe(subscriber, channel);
                             } catch (Exception e) {
-                                System.err.println(
-                                        "[Chirp] Error subscribing to channel: " + e.getMessage());
+                                throw new RuntimeException(
+                                        "Error subscribing to channel: " + e.getMessage());
                             }
                         })
                 .start();
 
-        System.out.println("[Chirp] Subscribed to channel: " + channel);
+        CHIRP_LOGGER.info("Subscribed to channel: " + channel);
     }
 
     public void publish(Object packet) {
@@ -145,7 +148,7 @@ public class Chirp {
         try (Jedis jedis = jedisPool.getResource()) {
             jedis.publish(channel, serializedJson);
         } catch (Exception e) {
-            System.err.println("[Chirp] Error publishing packet: " + e.getMessage());
+            CHIRP_LOGGER.log(Level.SEVERE, "Failed to publish packet: " + e.getMessage());
         }
     }
 

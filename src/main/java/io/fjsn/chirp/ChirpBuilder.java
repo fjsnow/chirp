@@ -78,10 +78,10 @@ public class ChirpBuilder {
 
     public Chirp build() {
         if (channel == null || channel.isEmpty()) {
-            throw new RuntimeException("[Chirp] Channel must be set");
+            throw new RuntimeException("Channel must be set");
         }
         if (origin == null || origin.isEmpty()) {
-            throw new RuntimeException("[Chirp] Origin must be set");
+            throw new RuntimeException("Origin must be set");
         }
 
         Chirp chirp = origin != null ? new Chirp(channel, origin) : new Chirp(channel);
