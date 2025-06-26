@@ -14,12 +14,21 @@ class AnnouncementPlugin extends JavaPlugin {
 
     @Override
     public void onEnable() {
+        // chirp =
+        //        new Chirp.builder()
+        //                .channel("announcement")
+        //                .scan("io.fjsn.announcement")
+        //                .connect("localhost", 6379)
+        //                .subscribe();
+
         chirp =
-                new Chirp("announcement")
-                        .debug()
-                        .scan("io.fjsn.announcement")
-                        .connect("localhost", 6379)
-                        .subscribe();
+                new Chirp.builder()
+                        .channel("announcement")
+                        .origin("server-1")
+                        .packet(AnnouncementPacket.class)
+                        .listener(new AnnouncementListener())
+                        .redis("localhost", 6379)
+                        .build();
 
         getCommand("announce").setExecutor(new AnnounceCommand(this));
     }

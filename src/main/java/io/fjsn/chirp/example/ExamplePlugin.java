@@ -7,9 +7,14 @@ public class ExamplePlugin {
     private Chirp chirp;
 
     public void onEnable() {
-        chirp = new Chirp("hub-1");
-        chirp.scan("io.fjsn.chirp.example");
-        chirp.connect("127.0.0.1", 12345);
+        chirp =
+                Chirp.builder()
+                        .channel("announcement")
+                        .origin("server-1")
+                        // .packet(ExamplePacket.class)
+                        .listener(new ExamplePacketListener())
+                        .redis("localhost", 6379)
+                        .build();
 
         ExamplePacket packet = new ExamplePacket("Player1");
         chirp.publish(packet);

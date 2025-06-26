@@ -31,9 +31,9 @@ import java.util.UUID;
 
 public class ChirpRegistry {
 
-    private final Map<String, Class<?>> packetRegistry;
     private final Map<String, FieldConverter<?>> converterRegistry;
-    private final Map<Object, List<HandlerMethod>> listeners;
+    private final Map<String, Class<?>> packetRegistry;
+    private final Map<Object, List<HandlerMethod>> listenerRegistry;
 
     public static String normalizeTypeName(Class<?> clazz) {
         if (clazz.isPrimitive()) {
@@ -52,19 +52,19 @@ public class ChirpRegistry {
     public ChirpRegistry() {
         this.packetRegistry = new HashMap<>();
         this.converterRegistry = new HashMap<>();
-        this.listeners = new HashMap<>();
-    }
-
-    public Map<String, Class<?>> getPacketRegistry() {
-        return packetRegistry;
+        this.listenerRegistry = new HashMap<>();
     }
 
     public Map<String, FieldConverter<?>> getConverterRegistry() {
         return converterRegistry;
     }
 
-    public Map<Object, List<HandlerMethod>> getListeners() {
-        return listeners;
+    public Map<String, Class<?>> getPacketRegistry() {
+        return packetRegistry;
+    }
+
+    public Map<Object, List<HandlerMethod>> getListenerRegistry() {
+        return listenerRegistry;
     }
 
     public void registerDefaultConverters() {
@@ -78,24 +78,6 @@ public class ChirpRegistry {
         registerConverter(Short.class, new ShortConverter());
         registerConverter(String.class, new StringConverter());
         registerConverter(UUID.class, new UUIDConverter());
-    }
-
-    public void registerPacket(Class<?> packetClass) {
-        if (packetClass == null) {
-            throw new IllegalArgumentException("Packet class cannot be null");
-        }
-
-        if (!packetClass.isAnnotationPresent(io.fjsn.chirp.annotation.ChirpPacket.class)) {
-            throw new IllegalArgumentException("Packet class must be annotated with @ChirpPacket");
-        }
-
-        String type = packetClass.getSimpleName().toUpperCase();
-        if (packetRegistry.containsKey(type)) {
-            throw new IllegalArgumentException("Packet type '" + type + "' is already registered");
-        }
-
-        packetRegistry.put(type, packetClass);
-        System.out.println("[ChirpRegistry] Registered packet: " + type);
     }
 
     public void registerConverter(Class<?> genericType, FieldConverter<?> converter) {
@@ -117,7 +99,25 @@ public class ChirpRegistry {
         System.out.println("[ChirpRegistry] Registered converter: " + type);
     }
 
-    public void addListener(Object listenerInstance) {
+    public void registerPacket(Class<?> packetClass) {
+        if (packetClass == null) {
+            throw new IllegalArgumentException("Packet class cannot be null");
+        }
+
+        if (!packetClass.isAnnotationPresent(io.fjsn.chirp.annotation.ChirpPacket.class)) {
+            throw new IllegalArgumentException("Packet class must be annotated with @ChirpPacket");
+        }
+
+        String type = packetClass.getSimpleName().toUpperCase();
+        if (packetRegistry.containsKey(type)) {
+            throw new IllegalArgumentException("Packet type '" + type + "' is already registered");
+        }
+
+        packetRegistry.put(type, packetClass);
+        System.out.println("[ChirpRegistry] Registered packet: " + type);
+    }
+
+    public void registerListener(Object listenerInstance) {
         if (listenerInstance == null) {
             throw new IllegalArgumentException("Listener cannot be null");
         }
@@ -129,7 +129,7 @@ public class ChirpRegistry {
                     "Listener class must be annotated with @ChirpListener");
         }
 
-        if (listeners.containsKey(listenerInstance)) {
+        if (listenerRegistry.containsKey(listenerInstance)) {
             throw new IllegalArgumentException(
                     "Listener '" + listenerClass.getSimpleName() + "' is already registered");
         }
@@ -143,7 +143,7 @@ public class ChirpRegistry {
                             + " has no @ChirpHandler methods");
         }
 
-        listeners.put(listenerInstance, handlerMethods);
+        listenerRegistry.put(listenerInstance, handlerMethods);
         System.out.println("[ChirpRegistry] Registered listener: " + listenerClass.getSimpleName());
     }
 
@@ -241,6 +241,10 @@ public class ChirpRegistry {
         }
 
         for (Class<?> converterClass : reflections.getTypesAnnotatedWith(ChirpConverter.class)) {
+            ChirpConverter chirpConverterAnnotation =
+                    converterClass.getAnnotation(ChirpConverter.class);
+            if (!chirpConverterAnnotation.scan()) return;
+
             try {
                 if (!FieldConverter.class.isAssignableFrom(converterClass)) {
                     throw new IllegalArgumentException(
@@ -270,9 +274,13 @@ public class ChirpRegistry {
         }
 
         for (Class<?> listenerClass : reflections.getTypesAnnotatedWith(ChirpListener.class)) {
+            ChirpListener chirpListenerAnnotation =
+                    listenerClass.getAnnotation(ChirpListener.class);
+            if (!chirpListenerAnnotation.scan()) return;
+
             try {
                 Object listenerInstance = listenerClass.getDeclaredConstructor().newInstance();
-                addListener(listenerInstance);
+                registerListener(listenerInstance);
             } catch (Exception e) {
                 System.err.println(
                         "[ChirpRegistry] Failed to register listener: "
@@ -285,8 +293,8 @@ public class ChirpRegistry {
 
     public void cleanup() {
         packetRegistry.clear();
+        listenerRegistry.clear();
         converterRegistry.clear();
-        listeners.clear();
         System.out.println("[ChirpRegistry] Cleared all registrations");
     }
 }

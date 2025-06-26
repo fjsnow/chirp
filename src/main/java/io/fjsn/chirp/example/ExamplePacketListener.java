@@ -4,7 +4,7 @@ import io.fjsn.chirp.ChirpPacketEvent;
 import io.fjsn.chirp.annotation.ChirpHandler;
 import io.fjsn.chirp.annotation.ChirpListener;
 
-@ChirpListener
+@ChirpListener(scan = false)
 public class ExamplePacketListener {
 
     @ChirpHandler

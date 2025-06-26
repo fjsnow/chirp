@@ -18,7 +18,7 @@ public class EventDispatcher {
 
     public void dispatchEvent(ChirpPacketEvent<?> event) {
         Class<?> packetClass = event.getPacket().getClass();
-        Map<Object, List<HandlerMethod>> listenerMap = registry.getListeners();
+        Map<Object, List<HandlerMethod>> listenerMap = registry.getListenerRegistry();
 
         for (Map.Entry<Object, List<HandlerMethod>> entry : listenerMap.entrySet()) {
 
