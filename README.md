@@ -31,7 +31,7 @@ You will need to shade in chirp into your project. Relocate it's package to incl
 
 In your main function, create an instance of Chirp. Optionally use `scan` which will automatically detect and register packets, listeners, and converters.
 
-`channel` is required to allow multiple different programs to use the same Redis server without conflicts, and `origin` is optional but often useful to know _where_ a packet originated from - you may want to set it as `Bukkit#getServerName()` or similar. If you don't provide it, a random ID will be assigned to your server. Chirp allows you to repeat origins as they in the end are simply treated as strings - But this may have unintended side effects if you plan on using the origin for logic.
+`channel` is required to allow multiple different programs to use the same Redis server without conflicts, and `origin` is optional but often useful to know _where_ a packet originated from - you may want to set it as `Bukkit#getServerName()` or similar. If you don't provide it, a random ID will be assigned to your server. Chirp allows you to repeat origins as they in the end are simply treated as strings - But this may have unintended side effects, such as packets being ignored as they are considered to be from the same origin.
 
 ```java
 // using builder
@@ -67,6 +67,12 @@ You can now send packets using `Chirp#publish`
 
 ```java
 chirp.publish(new ExamplePacket("Hello, world!"));
+```
+
+Note that although the server itself will recieve back the same packet, by default it'll not be processed by the packet handlers. If you want to recieve packets, provide `true` for self as a second argument to `publish`:
+
+```java
+chirp.publish(new ExamplePacket("Hello, world!"), true);
 ```
 
 Setup a listener by annotating a class with `@ChirpListener`, then register handler method(s) with `@ChirpHandler`.
