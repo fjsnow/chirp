@@ -240,11 +240,13 @@ Once again, if you have scanning enabled and this class lives within the package
 > [!WARNING]
 > If you are using Chirp on a Minecraft server, be aware that the packet handlers do not run on the main thread. If you need to perform actions that require the main thread (like interacting with Bukkit APIs), you will need to schedule those actions using `Bukkit#getScheduler().runTask(...)` or similar methods.
 
+#### Creating a custom converter
+
 During transfer, Chirp needs to serialise your packet to a String then later deserialise it. By default, Chirp comes with a range of converters for all of Java's primitive types and their boxed equivalents. Due to their popularity, Chirp also has converters for `String` and `UUID`.
 
-Chirp can also automatically serialise List, Set and Maps, and nested Objects, as long as they're made up of types that have a converter registered.
+Chirp can also automatically serialise Lists, Sets and Maps, and nested Objects, as long as they're made up of types that have a converter registered.
 
-To do so, create and annotate a class with `@ChirpConverter` and implement `FieldConverter<T>` on it.
+To create a custom converter, create and annotate a class with `@ChirpConverter` and implement `FieldConverter<T>` on it.
 
 You will simply need to provide a `serialize` and `deserialize` method, converting to and from `T` and `String` respectively.
 
