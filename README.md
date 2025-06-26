@@ -2,6 +2,31 @@
 
 Simple reflection-based annotation-based redis pub sub packet system. Built in mind for Minecraft servers, but should work with any Java program.
 
+### Installation
+
+You can use Chirp with Maven or Gradle via Jitpack. The latest version is `1.0`. An example for Maven is provided below:
+
+#### Maven
+
+```xml
+<repositories>
+    <repository>
+        <id>jitpack.io</id>
+        <url>https://jitpack.io</url>
+    </repository>
+    </repositories>
+    <dependencies>
+    <dependency>
+        <groupId>com.github.fjsnow</groupId>
+        <artifactId>chirp</artifactId>
+        <version>1.0</version>
+        <scope>compile</scope>
+    </dependency>
+</dependencies>
+```
+
+You will need to shade in chirp into your project. Relocate it's package to include `shaded` otherwise the scan feature will try re-register the default converters.
+
 ### Quick start
 
 In your main function, create an instance of Chirp. Optionally use `scan` which will automatically detect and register packets, listeners, and converters.
