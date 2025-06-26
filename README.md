@@ -138,7 +138,7 @@ Here’s how to configure it step by step:
    A unique ID (e.g., `"server-1"` or `"lobby-1"`) that identifies your server instance. Useful when filtering or tracking sources.
    - Do this with: `.origin("lobby-1")`
 
-5. **Register packets, listeners, and converters (More on what these are below)**  
+4. **Register packets, listeners, and converters (More on what these are below)**  
    You can do this manually or automatically:
    - Manually:
      - `.packet(YourPacket.class)`
@@ -147,12 +147,12 @@ Here’s how to configure it step by step:
    - Or automatically:
      - `.scan("your.package.name")` — Detects all annotated classes below the given package. (See caveats at the bottom)
 
-7. **Configure Redis connection**  
+5. **Configure Redis connection**  
    Provide your Redis host and port:
    - `.redis("localhost", 6379)`  
    - Or with password: `.redis("localhost", 6379, "yourPassword")`
 
-8. **Optionally, enable `debug` mode**
+6. **Optionally, enable `debug` mode**
    This will log out when packets, listeners and converters get registered, as well as any outgoing and incoming packets. Useful during development.
    - `.debug(true)`
 
@@ -201,25 +201,25 @@ To send a packet, simply create an instance of your packet and publish it via `C
 ##### Example
 
 ```java
-packet = new ExamplePacket("random string :P");
+ExamplePacket packet = new ExamplePacket("random string :P");
 chirp.publish(packet);
 ```
 
 > [!NOTE]
-> `Chirp#publish` will broadcast out your packet, but that means the broadcasting server will also recieve it! The sane default in Chirp is the broadcasting server ignores this incoming packet. To override this, passing `true` as a second argument in `Chirp#publish` will make handlers process it on the broadcasting server.
+> `Chirp#publish` will broadcast out your packet, but that means the broadcasting server will also receive it! The sane default in Chirp is the broadcasting server ignores this incoming packet. To override this, passing `true` as a second argument in `Chirp#publish` will make handlers process it on the broadcasting server.
 
 #### Listening to packets
 
-To listen and handle incoming packets, create and annotate a class with `@ChirpListener, then annotate handler method(s) with `@ChirpHandler`.
+To listen and handle incoming packets, create and annotate a class with `@ChirpListener`, then annotate handler method(s) with `@ChirpHandler`.
 
-Each handler method expects on argument of type `ChirpPacketEvent<T>`, with `T` being the event you want to subscribe too.
+Each handler method expects on argument of type `ChirpPacketEvent<T>`, a wrapper around a generic packet with attached metadata.
 
 `ChirpPacketEvent` contains important information regarding your event, notably:
 - `ChirpPacketEvent#getPacket` - Extracts the packet (type `T`)
 - `ChirpPacketEvent#getOrigin` - Extract the server where the packet originated from
 - `ChirpPacketEvent#getSent` - Gets the timestamp in milliseconds at which the packet was sent
 - `ChirpPacketEvent#getReceived` - Gets the timestamp in milliseconds at which the packet was received
-- `ChirpPacketEvent#getLatency` - Gets the latency of how long it took for the packet to be recieved
+- `ChirpPacketEvent#getLatency` - Gets the latency of how long it took for the packet to be received
 
 ##### Example
 
@@ -231,7 +231,7 @@ public class ExamplePacketListener {
     public void onExamplePacket(ChirpPacketEvent<ExamplePacket> event) {
         ExamplePacket packet = event.getPacket();
         System.out.println("The random text was " + packet.getRandom());
-        System.out.println("It took " + packet.getLatency() + "ms for us to recieve it!");
+        System.out.println("It took " + packet.getLatency() + "ms for us to receive it!");
     }
 
 }
