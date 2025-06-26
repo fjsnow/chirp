@@ -14,8 +14,8 @@ You can use Chirp with Maven or Gradle via Jitpack. The latest version is `1.0`.
         <id>jitpack.io</id>
         <url>https://jitpack.io</url>
     </repository>
-    </repositories>
-    <dependencies>
+</repositories>
+<dependencies>
     <dependency>
         <groupId>com.github.fjsnow</groupId>
         <artifactId>chirp</artifactId>
