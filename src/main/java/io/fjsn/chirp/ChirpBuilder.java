@@ -8,11 +8,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
-import java.util.logging.Level;
 
 public class ChirpBuilder {
 
-    private Level logLevel;
     private String channel;
     private String origin;
     private String scanPackageName;
@@ -25,18 +23,10 @@ public class ChirpBuilder {
     private int redisPort;
     private String redisPassword;
 
-    private boolean debug;
-
     public ChirpBuilder() {
         packetClasses = new ArrayList<>();
         listenerObjects = new ArrayList<>();
         converters = new HashMap<>();
-        debug = false;
-    }
-
-    public ChirpBuilder logLevel(Level level) {
-        this.logLevel = level;
-        return this;
     }
 
     public ChirpBuilder channel(String channel) {
@@ -88,9 +78,6 @@ public class ChirpBuilder {
     public Chirp build() {
         if (channel == null || channel.isEmpty()) {
             throw new RuntimeException("Channel must be set");
-        }
-        if (origin == null || origin.isEmpty()) {
-            throw new RuntimeException("Origin must be set");
         }
 
         Chirp chirp = origin != null ? new Chirp(channel, origin) : new Chirp(channel);

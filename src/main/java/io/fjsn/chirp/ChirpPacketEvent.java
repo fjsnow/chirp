@@ -4,12 +4,13 @@ public class ChirpPacketEvent<T> {
 
     private final T packet;
     private String origin;
+    private boolean self;
 
     private long sent;
     private long received;
     private long latency;
 
-    public ChirpPacketEvent(T packet, String origin, long sent, long received) {
+    public ChirpPacketEvent(T packet, String origin, boolean self, long sent, long received) {
         this.packet = packet;
         this.origin = origin;
         this.sent = sent;

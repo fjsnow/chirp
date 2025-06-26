@@ -16,7 +16,7 @@ public class PacketSerializer {
     }
 
     public static JsonObject serialize(
-            Object packet, String origin, long sent, ChirpRegistry registry) {
+            Object packet, String origin, boolean self, long sent, ChirpRegistry registry) {
         if (packet == null) throw new IllegalArgumentException("Packet cannot be null");
 
         JsonObject json = new JsonObject();
@@ -27,6 +27,7 @@ public class PacketSerializer {
                         .toUpperCase();
         json.addProperty("type", type);
         json.addProperty("origin", origin);
+        json.addProperty("self", self);
         json.addProperty("sent", sent);
 
         JsonObject data = new JsonObject();
@@ -118,8 +119,8 @@ public class PacketSerializer {
     }
 
     public static String toJsonString(
-            Object packet, String origin, long sent, ChirpRegistry registry) {
-        JsonObject json = serialize(packet, origin, sent, registry);
+            Object packet, String origin, boolean self, long sent, ChirpRegistry registry) {
+        JsonObject json = serialize(packet, origin, self, sent, registry);
         return json.toString();
     }
 }

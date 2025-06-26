@@ -36,6 +36,8 @@ public class Chirp {
         this.registry = new ChirpRegistry();
         this.registry.registerDefaultConverters();
         this.eventDispatcher = new EventDispatcher(registry);
+        ChirpLogger.debug(
+                "Chirp initialized with channel: " + this.channel + " and origin: " + this.origin);
     }
 
     public String getChannel() {
@@ -105,7 +107,7 @@ public class Chirp {
                             try (Jedis jedis = jedisPool.getResource()) {
                                 JedisSubscriber subscriber =
                                         new JedisSubscriber(
-                                                registry, eventDispatcher::dispatchEvent);
+                                                this, registry, eventDispatcher::dispatchEvent);
 
                                 jedis.subscribe(subscriber, channel);
                             } catch (Exception e) {
@@ -119,6 +121,10 @@ public class Chirp {
     }
 
     public void publish(Object packet) {
+        publish(packet, false);
+    }
+
+    public void publish(Object packet, boolean self) {
         if (jedisPool == null) {
             throw new IllegalStateException("JedisPool not initialized. Call setup() first.");
         }
@@ -130,7 +136,8 @@ public class Chirp {
         }
 
         String serializedJson =
-                PacketSerializer.toJsonString(packet, origin, System.currentTimeMillis(), registry);
+                PacketSerializer.toJsonString(
+                        packet, origin, self, System.currentTimeMillis(), registry);
         try (Jedis jedis = jedisPool.getResource()) {
             jedis.publish(channel, serializedJson);
         } catch (Exception e) {
