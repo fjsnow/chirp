@@ -1,6 +1,5 @@
 package io.fjsn.chirp.internal;
 
-import io.fjsn.chirp.Chirp;
 import io.fjsn.chirp.ChirpPacketEvent;
 import io.fjsn.chirp.ChirpRegistry;
 
@@ -8,7 +7,6 @@ import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.List;
 import java.util.Map;
-import java.util.logging.Level;
 
 public class EventDispatcher {
 
@@ -37,8 +35,7 @@ public class EventDispatcher {
                 try {
                     method.invoke(listenerInstance, event);
                 } catch (IllegalAccessException | InvocationTargetException e) {
-                    Chirp.CHIRP_LOGGER.log(
-                            Level.SEVERE, "Failed to invoke handler: " + e.getMessage());
+                    ChirpLogger.severe("Failed to invoke handler: " + e.getMessage());
                 }
             }
         }

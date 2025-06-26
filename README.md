@@ -11,10 +11,12 @@ In your main function, create an instance of Chirp. Optionally use `scan` which 
 ```java
 // using builder
 Chirp chirp = Chirp.builder()
+                    // enable debug logging, useful for development
+                    // .debug(true)
                     .channel("announcement")
                     .origin("server-1")
                     .scan("your.main.package")
-                    // rather, if you don't want to automatically register these, or if they have scan set to false
+                    // rather, if you don't want to automatically register these / they have scan set to false
                     // .packet(ExamplePacket.class)
                     // .listener(new ExamplePacketListener())
                     // .converter(Integer.class, new IntegerConverter)
@@ -83,10 +85,15 @@ public class IntegerConverter implements FieldConverter<Integer> {
 
 ### Scan
 
-The recommended way for most projects using Chirp is to use the scan, which will automatically register packets, listeners and converters. However, if your listener or converters required dependencies to be injected Chirp cannot be automatically registered - Rather, set `scan` to false in `@ChirpListener` or `@ChirpConverter` respectively where you don't want them to be automatically picked up, and they will be ignored and you can manually register them, listeners or converters
+The recommended way for most projects using Chirp is to use the scan, which will automatically register packets, listeners and converters. If you want to opt-in to scanning overall but not for specific classes, you can set `scan` to false on the annotation itself. This may be required if you have classes that require a constructor with arguments, as Chirp will not be able to instantiate them automatically.
 
 ```java
+
+@ChirpListener(scan = false)
+public class ExampleListener { /* ... */ }
+
 // ExampleListener requires a JavaPlugin instance, therefore we can not automatically register it.
-// If `scan` is not set to false, Chirp will throw an exception if it cannot find a no-args constructor.
-.scan("your.main.package")
-.listener(new ExampleListener(this))```
+chirp
+    .scan("your.main.package")
+    .listener(new ExampleListener(this))
+```

@@ -2,6 +2,7 @@ package io.fjsn.chirp;
 
 import io.fjsn.chirp.annotation.ChirpPacket;
 import io.fjsn.chirp.converter.FieldConverter;
+import io.fjsn.chirp.internal.ChirpLogger;
 import io.fjsn.chirp.internal.EventDispatcher;
 import io.fjsn.chirp.internal.JedisSubscriber;
 import io.fjsn.chirp.internal.PacketSerializer;
@@ -10,12 +11,7 @@ import redis.clients.jedis.Jedis;
 import redis.clients.jedis.JedisPool;
 import redis.clients.jedis.JedisPoolConfig;
 
-import java.util.logging.Level;
-import java.util.logging.Logger;
-
 public class Chirp {
-
-    public static Logger CHIRP_LOGGER = Logger.getLogger("Chirp");
 
     public static ChirpBuilder builder() {
         return new ChirpBuilder();
@@ -25,7 +21,6 @@ public class Chirp {
 
     private final String channel;
     private final String origin;
-    private Level logLevel;
 
     private JedisPool jedisPool;
     private final ChirpRegistry registry;
@@ -38,7 +33,6 @@ public class Chirp {
     public Chirp(String channel, String origin) {
         this.channel = CHANNEL_PREFIX + channel;
         this.origin = origin;
-        this.logLevel = Level.INFO;
         this.registry = new ChirpRegistry();
         this.registry.registerDefaultConverters();
         this.eventDispatcher = new EventDispatcher(registry);
@@ -50,14 +44,6 @@ public class Chirp {
 
     public String getOrigin() {
         return origin;
-    }
-
-    public Level getLogLevel() {
-        return logLevel;
-    }
-
-    public void setLogLevel(Level logLevel) {
-        this.logLevel = logLevel;
     }
 
     public void connect(String redisHost, int redisPort) {
@@ -75,7 +61,7 @@ public class Chirp {
         try (Jedis jedis = jedisPool.getResource()) {
             String response = jedis.ping();
             if ("PONG".equals(response)) {
-                CHIRP_LOGGER.info("Connected to Redis");
+                ChirpLogger.info("Connected to Redis");
             } else {
                 throw new RuntimeException(
                         "Failed to connect to Redis: Unexpected response " + response);
@@ -129,7 +115,7 @@ public class Chirp {
                         })
                 .start();
 
-        CHIRP_LOGGER.info("Subscribed to channel: " + channel);
+        ChirpLogger.info("Subscribed to channel: " + channel);
     }
 
     public void publish(Object packet) {
@@ -148,7 +134,7 @@ public class Chirp {
         try (Jedis jedis = jedisPool.getResource()) {
             jedis.publish(channel, serializedJson);
         } catch (Exception e) {
-            CHIRP_LOGGER.log(Level.SEVERE, "Failed to publish packet: " + e.getMessage());
+            ChirpLogger.severe("Failed to publish packet: " + e.getMessage());
         }
     }
 

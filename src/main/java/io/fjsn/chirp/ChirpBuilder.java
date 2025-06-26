@@ -1,6 +1,7 @@
 package io.fjsn.chirp;
 
 import io.fjsn.chirp.converter.FieldConverter;
+import io.fjsn.chirp.internal.ChirpLogger;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -16,18 +17,21 @@ public class ChirpBuilder {
     private String origin;
     private String scanPackageName;
 
+    private Map<Class<?>, FieldConverter<?>> converters;
+    private List<Class<?>> packetClasses;
+    private ArrayList<Object> listenerObjects;
+
     private String redisUsername;
     private int redisPort;
     private String redisPassword;
 
-    private Map<Class<?>, FieldConverter<?>> converters;
-    private List<Class<?>> packetClasses;
-    private ArrayList<Object> listenerObjects;
+    private boolean debug;
 
     public ChirpBuilder() {
         packetClasses = new ArrayList<>();
         listenerObjects = new ArrayList<>();
         converters = new HashMap<>();
+        debug = false;
     }
 
     public ChirpBuilder logLevel(Level level) {
@@ -76,6 +80,11 @@ public class ChirpBuilder {
         return this;
     }
 
+    public ChirpBuilder debug(boolean debug) {
+        ChirpLogger.debug = debug;
+        return this;
+    }
+
     public Chirp build() {
         if (channel == null || channel.isEmpty()) {
             throw new RuntimeException("Channel must be set");
@@ -85,7 +94,6 @@ public class ChirpBuilder {
         }
 
         Chirp chirp = origin != null ? new Chirp(channel, origin) : new Chirp(channel);
-        chirp.setLogLevel(logLevel);
 
         if (scanPackageName != null) chirp.scan(scanPackageName);
         for (Class<?> clazz : packetClasses) chirp.registerPacket(clazz);

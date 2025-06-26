@@ -15,6 +15,7 @@ import io.fjsn.chirp.converter.impl.LongConverter;
 import io.fjsn.chirp.converter.impl.ShortConverter;
 import io.fjsn.chirp.converter.impl.StringConverter;
 import io.fjsn.chirp.converter.impl.UUIDConverter;
+import io.fjsn.chirp.internal.ChirpLogger;
 import io.fjsn.chirp.internal.HandlerMethod;
 
 import org.reflections.Reflections;
@@ -28,7 +29,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
-import java.util.logging.Level;
 
 public class ChirpRegistry {
 
@@ -97,7 +97,7 @@ public class ChirpRegistry {
         }
 
         converterRegistry.put(type, converter);
-        Chirp.CHIRP_LOGGER.log(Level.FINE, "Registered converter: " + type);
+        ChirpLogger.debug("Registered converter: " + type);
     }
 
     public void registerPacket(Class<?> packetClass) {
@@ -105,17 +105,19 @@ public class ChirpRegistry {
             throw new IllegalArgumentException("Packet class cannot be null");
         }
 
-        if (!packetClass.isAnnotationPresent(io.fjsn.chirp.annotation.ChirpPacket.class)) {
+        if (!packetClass.isAnnotationPresent(ChirpPacket.class)) {
             throw new IllegalArgumentException("Packet class must be annotated with @ChirpPacket");
         }
 
-        String type = packetClass.getSimpleName().toUpperCase();
+        String type =
+                packetClass.getSimpleName().replaceAll("([a-z])([A-Z])", "$1_$2").toUpperCase();
+
         if (packetRegistry.containsKey(type)) {
             throw new IllegalArgumentException("Packet type '" + type + "' is already registered");
         }
 
         packetRegistry.put(type, packetClass);
-        Chirp.CHIRP_LOGGER.log(Level.FINE, "Registered packet: " + type);
+        ChirpLogger.debug("Registered packet: " + type);
     }
 
     public void registerListener(Object listenerInstance) {
@@ -138,13 +140,15 @@ public class ChirpRegistry {
         List<HandlerMethod> handlerMethods = findHandlerMethods(listenerClass);
 
         if (handlerMethods.isEmpty()) {
-            Chirp.CHIRP_LOGGER.log(
-                    Level.WARNING,
+            ChirpLogger.warning(
                     "Listener " + listenerClass.getName() + " has no @ChirpHandler methods");
         }
 
+        String name =
+                listenerClass.getSimpleName().replaceAll("([a-z])([A-Z])", "$1_$2").toUpperCase();
+
         listenerRegistry.put(listenerInstance, handlerMethods);
-        Chirp.CHIRP_LOGGER.log(Level.FINE, "Registered listener: " + listenerClass.getSimpleName());
+        ChirpLogger.debug("Registered listener: " + name);
     }
 
     private List<HandlerMethod> findHandlerMethods(Class<?> listenerClass) {
@@ -229,6 +233,9 @@ public class ChirpRegistry {
         Reflections reflections = new Reflections(packageName, Scanners.TypesAnnotated);
 
         for (Class<?> packetClass : reflections.getTypesAnnotatedWith(ChirpPacket.class)) {
+            ChirpPacket chirpPacketAnnotation = packetClass.getAnnotation(ChirpPacket.class);
+            if (!chirpPacketAnnotation.scan()) return;
+
             try {
                 registerPacket(packetClass);
             } catch (IllegalArgumentException e) {
@@ -295,6 +302,6 @@ public class ChirpRegistry {
         packetRegistry.clear();
         listenerRegistry.clear();
         converterRegistry.clear();
-        Chirp.CHIRP_LOGGER.log(Level.FINE, "Cleared all registrations");
+        ChirpLogger.debug("Cleared all registrations");
     }
 }

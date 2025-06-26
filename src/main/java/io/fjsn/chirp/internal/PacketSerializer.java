@@ -20,7 +20,11 @@ public class PacketSerializer {
         if (packet == null) throw new IllegalArgumentException("Packet cannot be null");
 
         JsonObject json = new JsonObject();
-        String type = packet.getClass().getSimpleName().toUpperCase();
+        String type =
+                packet.getClass()
+                        .getSimpleName()
+                        .replaceAll("([a-z])([A-Z])", "$1_$2")
+                        .toUpperCase();
         json.addProperty("type", type);
         json.addProperty("origin", origin);
         json.addProperty("sent", sent);

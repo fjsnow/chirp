@@ -3,14 +3,12 @@ package io.fjsn.chirp.internal;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 
-import io.fjsn.chirp.Chirp;
 import io.fjsn.chirp.ChirpPacketEvent;
 import io.fjsn.chirp.ChirpRegistry;
 
 import redis.clients.jedis.JedisPubSub;
 
 import java.util.function.Consumer;
-import java.util.logging.Level;
 
 public class JedisSubscriber extends JedisPubSub {
 
@@ -24,8 +22,7 @@ public class JedisSubscriber extends JedisPubSub {
 
     @Override
     public void onMessage(String channel, String message) {
-        Chirp.CHIRP_LOGGER.log(
-                Level.FINE, "Recieved message on channel '" + channel + "': " + message);
+        ChirpLogger.debug("Recieved message on channel '" + channel + "': " + message);
 
         try {
             JsonObject json = JsonParser.parseString(message).getAsJsonObject();
@@ -37,7 +34,7 @@ public class JedisSubscriber extends JedisPubSub {
                     new ChirpPacketEvent<>(packet, origin, sent, System.currentTimeMillis());
             eventConsumer.accept(event);
         } catch (Exception e) {
-            Chirp.CHIRP_LOGGER.log(Level.SEVERE, "Error handling message: " + e.getMessage());
+            ChirpLogger.severe("Error handling message: " + e.getMessage());
         }
     }
 }
