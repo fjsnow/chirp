@@ -285,24 +285,24 @@ Your callback should include:
 
 ```java
 MessagePacket packet = new MessagePacket(receiverName, sender.getName(), message);
-        plugin.getChirp()
-                .publish(
-                        packet,
-                        true,
-                        ChirpCallback.<MessageResponsePacket>of(
-                                response -> {
-                                    sender.sendMessage(
-                                            mm.deserialize(
-                                                    "<gray>(You -> "
-                                                            + receiverName
-                                                            + ") <white>"
-                                                            + message));
-                                },
-                                () -> {
-                                    sender.sendMessage(
-                                            mm.deserialize("<red>Failed to send message."));
-                                },
-                                200L));
+plugin.getChirp()
+        .publish(
+                packet,
+                true,
+                ChirpCallback.<MessageResponsePacket>of(
+                        response -> {
+                            sender.sendMessage(
+                                    mm.deserialize(
+                                            "<gray>(You -> "
+                                                    + receiverName
+                                                    + ") <white>"
+                                                    + message));
+                        },
+                        () -> {
+                            sender.sendMessage(
+                                    mm.deserialize("<red>Failed to send message."));
+                        },
+                        200L));
 ```
 
 And now simply a listener can respond to the initial packet:
