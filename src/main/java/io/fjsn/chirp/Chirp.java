@@ -11,6 +11,8 @@ import redis.clients.jedis.Jedis;
 import redis.clients.jedis.JedisPool;
 import redis.clients.jedis.JedisPoolConfig;
 
+import java.util.UUID;
+
 public class Chirp {
 
     public static ChirpBuilder builder() {
@@ -97,6 +99,10 @@ public class Chirp {
         registry.registerConverter(genericType, converter);
     }
 
+    public void setupCallbackRemoverThread() {
+        registry.setupCallbackRemoverThread();
+    }
+
     public void subscribe() {
         if (jedisPool == null) {
             throw new IllegalStateException("JedisPool not initialized. Call setup() first.");
@@ -106,25 +112,61 @@ public class Chirp {
                         () -> {
                             try (Jedis jedis = jedisPool.getResource()) {
                                 JedisSubscriber subscriber =
-                                        new JedisSubscriber(
-                                                this, registry, eventDispatcher::dispatchEvent);
-
+                                        new JedisSubscriber(this, registry, eventDispatcher);
                                 jedis.subscribe(subscriber, channel);
                             } catch (Exception e) {
                                 throw new RuntimeException(
-                                        "Error subscribing to channel: " + e.getMessage());
+                                        "Error subscribing to main channel: " + e.getMessage());
                             }
                         })
                 .start();
 
-        ChirpLogger.info("Subscribed to channel: " + channel);
+        new Thread(
+                        () -> {
+                            try (Jedis jedis = jedisPool.getResource()) {
+                                JedisSubscriber subscriber =
+                                        new JedisSubscriber(this, registry, eventDispatcher);
+                                jedis.subscribe(subscriber, channel + ":" + origin);
+                            } catch (Exception e) {
+                                throw new RuntimeException(
+                                        "Error subscribing to service channel: " + e.getMessage());
+                            }
+                        })
+                .start();
+
+        ChirpLogger.info("Subscribed to channels: " + channel + " and " + channel + ":" + origin);
     }
 
     public void publish(Object packet) {
-        publish(packet, false);
+        publish(packet, channel, false, null);
+    }
+
+    public void publish(Object packet, String destination) {
+        publish(packet, destination, false, null);
     }
 
     public void publish(Object packet, boolean self) {
+        publish(packet, null, self, null);
+    }
+
+    public <T> void publish(Object packet, ChirpCallback<T> callback) {
+        publish(packet, null, false, callback);
+    }
+
+    public void publish(Object packet, String destination, boolean self) {
+        publish(packet, destination, false, null);
+    }
+
+    public <T> void publish(Object packet, String destination, ChirpCallback<T> callback) {
+        publish(packet, destination, false, callback);
+    }
+
+    public <T> void publish(Object packet, boolean self, ChirpCallback<T> callback) {
+        publish(packet, null, self, callback);
+    }
+
+    public <T> void publish(
+            Object packet, String destination, boolean self, ChirpCallback<T> callback) {
         if (jedisPool == null) {
             throw new IllegalStateException("JedisPool not initialized. Call setup() first.");
         }
@@ -135,13 +177,80 @@ public class Chirp {
             throw new IllegalArgumentException("Packet must be annotated with @ChirpPacket");
         }
 
+        UUID packetId = UUID.randomUUID();
         String serializedJson =
                 PacketSerializer.toJsonString(
-                        packet, origin, self, System.currentTimeMillis(), registry);
+                        packet,
+                        packetId,
+                        origin,
+                        false,
+                        null,
+                        self,
+                        System.currentTimeMillis(),
+                        registry);
+
+        if (callback != null) registry.registerCallback(packetId, callback);
         try (Jedis jedis = jedisPool.getResource()) {
-            jedis.publish(channel, serializedJson);
+            jedis.publish(
+                    destination == null ? channel : channel + ":" + destination, serializedJson);
+            ChirpLogger.debug(
+                    "Published packet to channel: "
+                            + (destination == null ? channel : destination));
+            ChirpLogger.debug(
+                    "Raw packet: "
+                            + PacketSerializer.toPrettyJsonString(
+                                    packet,
+                                    packetId,
+                                    origin,
+                                    false,
+                                    null,
+                                    self,
+                                    System.currentTimeMillis(),
+                                    registry));
         } catch (Exception e) {
             ChirpLogger.severe("Failed to publish packet: " + e.getMessage());
+        }
+    }
+
+    public void respond(ChirpPacketEvent<?> event, Object response, boolean self) {
+        if (jedisPool == null) {
+            throw new IllegalStateException("JedisPool not initialized. Call setup() first.");
+        }
+        if (response == null) {
+            throw new IllegalArgumentException("Response cannot be null");
+        }
+        if (!response.getClass().isAnnotationPresent(ChirpPacket.class)) {
+            throw new IllegalArgumentException("Response must be annotated with @ChirpPacket");
+        }
+
+        UUID packetId = UUID.randomUUID();
+        String serializedJson =
+                PacketSerializer.toJsonString(
+                        response,
+                        packetId,
+                        origin,
+                        true,
+                        event.getPacketId(),
+                        self,
+                        System.currentTimeMillis(),
+                        registry);
+
+        try (Jedis jedis = jedisPool.getResource()) {
+            jedis.publish(channel + ":" + event.getOrigin(), serializedJson);
+            ChirpLogger.debug("Published packet to channel: " + channel + ":" + event.getOrigin());
+            ChirpLogger.debug(
+                    "Raw packet: "
+                            + PacketSerializer.toPrettyJsonString(
+                                    response,
+                                    packetId,
+                                    origin,
+                                    true,
+                                    event.getPacketId(),
+                                    self,
+                                    System.currentTimeMillis(),
+                                    registry));
+        } catch (Exception e) {
+            ChirpLogger.severe("Failed to respond to event: " + e.getMessage());
         }
     }
 

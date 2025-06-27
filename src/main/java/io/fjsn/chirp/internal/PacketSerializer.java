@@ -12,7 +12,14 @@ import java.util.*;
 public class PacketSerializer {
 
     public static JsonObject serialize(
-            Object packet, String origin, boolean self, long sent, ChirpRegistry registry) {
+            Object packet,
+            UUID packetId,
+            String origin,
+            boolean responding,
+            UUID respondingTo,
+            boolean self,
+            long sent,
+            ChirpRegistry registry) {
 
         if (packet == null) throw new IllegalArgumentException("Packet cannot be null");
 
@@ -23,8 +30,11 @@ public class PacketSerializer {
                         .replaceAll("([a-z])([A-Z])", "$1_$2")
                         .toUpperCase();
 
+        json.addProperty("packetId", packetId.toString());
         json.addProperty("type", type);
         json.addProperty("origin", origin);
+        json.addProperty("responding", responding);
+        if (responding) json.addProperty("respondingTo", respondingTo.toString());
         json.addProperty("self", self);
         json.addProperty("sent", sent);
 
@@ -92,10 +102,33 @@ public class PacketSerializer {
     }
 
     public static String toJsonString(
-            Object packet, String origin, boolean self, long sent, ChirpRegistry registry) {
+            Object packet,
+            UUID packetId,
+            String origin,
+            boolean responding,
+            UUID respondingTo,
+            boolean self,
+            long sent,
+            ChirpRegistry registry) {
 
-        JsonObject json = serialize(packet, origin, self, sent, registry);
+        JsonObject json =
+                serialize(packet, packetId, origin, responding, respondingTo, self, sent, registry);
         return json.toString();
+    }
+
+    public static String toPrettyJsonString(
+            Object packet,
+            UUID packetId,
+            String origin,
+            boolean responding,
+            UUID respondingTo,
+            boolean self,
+            long sent,
+            ChirpRegistry registry) {
+        JsonObject json =
+                serialize(packet, packetId, origin, responding, respondingTo, self, sent, registry);
+        Gson gson = new GsonBuilder().setPrettyPrinting().create();
+        return gson.toJson(json);
     }
 
     private static JsonElement serializeValue(Object value, Type type, ChirpRegistry registry) {

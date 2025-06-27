@@ -9,19 +9,18 @@ import io.fjsn.chirp.ChirpRegistry;
 
 import redis.clients.jedis.JedisPubSub;
 
-import java.util.function.Consumer;
+import java.util.UUID;
 
 public class JedisSubscriber extends JedisPubSub {
 
     private final Chirp chirp;
     private final ChirpRegistry registry;
-    private final Consumer<ChirpPacketEvent<?>> eventConsumer;
+    private final EventDispatcher eventDispatcher;
 
-    public JedisSubscriber(
-            Chirp chirp, ChirpRegistry registry, Consumer<ChirpPacketEvent<?>> eventConsumer) {
+    public JedisSubscriber(Chirp chirp, ChirpRegistry registry, EventDispatcher eventDispatcher) {
         this.chirp = chirp;
         this.registry = registry;
-        this.eventConsumer = eventConsumer;
+        this.eventDispatcher = eventDispatcher;
     }
 
     @Override
@@ -30,8 +29,16 @@ public class JedisSubscriber extends JedisPubSub {
 
         try {
             JsonObject json = JsonParser.parseString(message).getAsJsonObject();
+
             Object packet = PacketSerializer.deserialize(json, registry);
+
+            UUID packetId = UUID.fromString(json.get("packetId").getAsString());
             String origin = json.get("origin").getAsString();
+            boolean responding = json.get("responding").getAsBoolean();
+            UUID respondingTo =
+                    json.has("respondingTo")
+                            ? UUID.fromString(json.get("respondingTo").getAsString())
+                            : null;
             boolean self = json.get("self").getAsBoolean();
             long sent = json.get("sent").getAsLong();
 
@@ -41,8 +48,23 @@ public class JedisSubscriber extends JedisPubSub {
             }
 
             ChirpPacketEvent<Object> event =
-                    new ChirpPacketEvent<>(packet, origin, self, sent, System.currentTimeMillis());
-            eventConsumer.accept(event);
+                    new ChirpPacketEvent<>(
+                            chirp,
+                            packetId,
+                            packet,
+                            origin,
+                            responding,
+                            respondingTo,
+                            self,
+                            sent,
+                            System.currentTimeMillis());
+
+            if (responding) {
+                eventDispatcher.dispatchEventToResponders(event);
+            } else {
+                eventDispatcher.dispatchEventToListeners(event);
+            }
+
         } catch (Exception e) {
             ChirpLogger.severe("Error handling message: " + e.getMessage());
         }

@@ -37,6 +37,8 @@ public class ChirpRegistry {
     private final Map<String, Class<?>> packetRegistry;
     private final Map<Object, List<HandlerMethod>> listenerRegistry;
 
+    private final Map<UUID, ChirpCallback<?>> callbackRegistry = new HashMap<>();
+
     public static String normalizeTypeName(Type type) {
         if (type instanceof Class<?> clazz) {
             return normalizeTypeName(clazz);
@@ -90,6 +92,10 @@ public class ChirpRegistry {
 
     public Map<Object, List<HandlerMethod>> getListenerRegistry() {
         return listenerRegistry;
+    }
+
+    public Map<UUID, ChirpCallback<?>> getCallbackRegistry() {
+        return callbackRegistry;
     }
 
     public void registerDefaultConverters() {
@@ -173,6 +179,67 @@ public class ChirpRegistry {
 
         listenerRegistry.put(listenerInstance, handlerMethods);
         ChirpLogger.debug("Registered listener: " + name);
+    }
+
+    public void registerCallback(UUID packetId, ChirpCallback<?> callback) {
+        if (packetId == null) {
+            throw new IllegalArgumentException("Packet ID cannot be null");
+        }
+
+        if (callback == null) {
+            throw new IllegalArgumentException("Callback cannot be null");
+        }
+
+        if (callbackRegistry.containsKey(packetId)) {
+            throw new IllegalArgumentException(
+                    "Callback for packet ID '" + packetId + "' is already registered");
+        }
+
+        callbackRegistry.put(packetId, callback);
+        ChirpLogger.debug("Registered callback for packet: " + packetId);
+    }
+
+    public void removeExpiredCallbacks() {
+        List<UUID> toRemove = new ArrayList<>();
+        for (Map.Entry<UUID, ChirpCallback<?>> entry : callbackRegistry.entrySet()) {
+            UUID packetId = entry.getKey();
+            ChirpCallback<?> callback = entry.getValue();
+
+            if (callback.isExpired()) {
+                callback.getOnTimeout().run();
+                toRemove.add(packetId);
+                ChirpLogger.debug("Removing expired callback for packet: " + packetId);
+            }
+        }
+
+        for (UUID packetId : toRemove) {
+            callbackRegistry.remove(packetId);
+        }
+    }
+
+    public void setupCallbackRemoverThread() {
+        Thread callbackRemoverThread =
+                new Thread(
+                        () -> {
+                            while (true) {
+                                try {
+                                    Thread.sleep(20L);
+                                    removeExpiredCallbacks();
+                                } catch (InterruptedException e) {
+                                    Thread.currentThread().interrupt();
+                                    ChirpLogger.severe(
+                                            "Callback remover thread interrupted" + e.getMessage());
+                                    break;
+                                } catch (Exception e) {
+                                    ChirpLogger.severe(
+                                            "Error in callback remover thread: " + e.getMessage());
+                                }
+                            }
+                        });
+
+        callbackRemoverThread.setName("Chirp-CallbackRemover");
+        callbackRemoverThread.setDaemon(true);
+        callbackRemoverThread.start();
     }
 
     private List<HandlerMethod> findHandlerMethods(Class<?> listenerClass) {
