@@ -274,7 +274,7 @@ Once again, if you have scanning enabled and this class lives within the package
 
 Redis Pub/Sub is inherently fire-and-forget, meaning it doesn't support request-response or callbacks natively. However, Chirp extends this model by offering support for automatic callbacks via the `ChirpCallback<T>` class.
 
-To use it, pass a `ChirpCallback<T>` in `Chirp#publish`, where T is your response time, when publishing a packet. Chirp will automatically handle the routing, waiting, and response delivery for you.
+To use it, pass a `ChirpCallback<T>` in `Chirp#publish`, where T is your response packet, when publishing a packet. Chirp will automatically handle the routing, waiting, and response delivery for you.
 
 Your callback should include:
 - A consumer to handle the response (`ChirpPacketEvent<T>`).
