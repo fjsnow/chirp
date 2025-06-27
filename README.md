@@ -268,11 +268,47 @@ public class IntegerConverter implements FieldConverter<Integer> {
 
 Once again, if you have scanning enabled and this class lives within the package, Chirp will automatically register this converter on load. Otherwise, register it manually using `.converter(Integer.class, new IntegerListener())` on your `ChirpBuilder`.
 
+### Callbacks
+
+Redis Pub/Sub is inherently fire-and-forget, meaning it doesn't support request-response or callbacks natively. However, Chirp extends this model by offering support for automatic callbacks via the `ChirpCallback<T>` class.
+
+To use it, pass a `ChirpCallback<T>` in `Chirp#publish`, where T is your response time, when publishing a packet. Chirp will automatically handle the routing, waiting, and response delivery for you.
+
+Your callback should include:
+- A consumer to handle the response (`ChirpPacketEvent<T>`).
+- An optional timeout handle if no response is received (`Runnable`).
+- An optional time to live (TTL) for the callback, which defaults to 1 second.
+
+##### Example
+
+```java
+MessagePacket packet = new MessagePacket(receiverName, sender.getName(), message);
+        plugin.getChirp()
+                .publish(
+                        packet,
+                        true,
+                        ChirpCallback.<MessageResponsePacket>of(
+                                response -> {
+                                    sender.sendMessage(
+                                            mm.deserialize(
+                                                    "<gray>(You -> "
+                                                            + receiverName
+                                                            + ") <white>"
+                                                            + message));
+                                },
+                                () -> {
+                                    sender.sendMessage(
+                                            mm.deserialize("<red>Failed to send message."));
+                                },
+                                200L));
+```
+
 ### Scanner
 
 The easiest way for small projects using Chirp is to use the scanner, which will automatically register packets, listeners and converters.
 
 If you want to opt-in to scanning overall but not for specific packets, listeners or converters (for example if they have constructors with arguments), you can set `scan` to false on the specific annotation itself.
+
 
 ##### Example
 
