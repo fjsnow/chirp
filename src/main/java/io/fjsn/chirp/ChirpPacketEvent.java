@@ -1,21 +1,47 @@
 package io.fjsn.chirp;
 
+import java.util.UUID;
+
 public class ChirpPacketEvent<T> {
 
+    private final Chirp chirp;
+
+    private final UUID packetId;
+
     private final T packet;
-    private String origin;
-    private boolean self;
+    private final String origin;
+    private final boolean responding;
+    private final UUID respondingTo;
+    private final boolean self;
 
-    private long sent;
-    private long received;
-    private long latency;
+    private final long sent;
+    private final long received;
+    private final long latency;
 
-    public ChirpPacketEvent(T packet, String origin, boolean self, long sent, long received) {
+    public ChirpPacketEvent(
+            Chirp chirp,
+            UUID packetId,
+            T packet,
+            String origin,
+            boolean responding,
+            UUID respondingTo,
+            boolean self,
+            long sent,
+            long received) {
+        this.chirp = chirp;
+        this.packetId = packetId;
         this.packet = packet;
         this.origin = origin;
+        this.responding = responding;
+        this.respondingTo = respondingTo;
+        this.self = self;
         this.sent = sent;
         this.received = received;
         this.latency = received - sent;
+    }
+
+    public UUID getPacketId() {
+        return packetId;
     }
 
     public T getPacket() {
@@ -24,6 +50,14 @@ public class ChirpPacketEvent<T> {
 
     public String getOrigin() {
         return origin;
+    }
+
+    public boolean isResponding() {
+        return responding;
+    }
+
+    public UUID getRespondingTo() {
+        return respondingTo;
     }
 
     public long getSent() {
@@ -38,14 +72,22 @@ public class ChirpPacketEvent<T> {
         return latency;
     }
 
+    public void respond(Object response) {
+        chirp.respond(this, response, self);
+    }
+
     @Override
     public String toString() {
         return "ChirpPacketEvent{"
-                + "packet="
+                + "packetId="
+                + packetId
+                + ", packet="
                 + packet
                 + ", origin='"
                 + origin
                 + '\''
+                + ", self="
+                + self
                 + ", sent="
                 + sent
                 + ", received="

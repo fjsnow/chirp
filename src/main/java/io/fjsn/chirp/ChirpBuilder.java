@@ -90,6 +90,7 @@ public class ChirpBuilder {
 
         chirp.connect(redisUsername, redisPort, redisPassword);
         chirp.subscribe();
+        chirp.setupCallbackRemoverThread();
         return chirp;
     }
 }
