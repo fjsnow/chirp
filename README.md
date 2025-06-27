@@ -6,7 +6,7 @@ Designed for Minecraft servers, but compatible with any Java application.
 
 ### Installation
 
-You can install Chirp via Jitpack in your favourite package manager below. The latest version is `1.1.0`.
+You can install Chirp via Jitpack in your favourite package manager below. The latest version is `1.2.0`.
 
 <details>
 
@@ -23,7 +23,7 @@ You can install Chirp via Jitpack in your favourite package manager below. The l
 <dependency>
     <groupId>io.fjsn</groupId>
     <artifactId>chirp</artifactId>
-    <version>1.1.0</version>
+    <version>1.2.0</version>
 </dependency>
 ```
 
@@ -71,7 +71,7 @@ repositories {
 }
 
 dependencies {
-    implementation 'io.fjsn:chirp:1.1.0'
+    implementation 'io.fjsn:chirp:1.2.0'
 }
 ```
 
