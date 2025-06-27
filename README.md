@@ -279,7 +279,7 @@ To use it, pass a `ChirpCallback<T>` in `Chirp#publish`, where T is your respons
 Your callback should include:
 - A consumer to handle the response (`ChirpPacketEvent<T>`).
 - An optional timeout handle if no response is received (`Runnable`).
-- An optional time to live (TTL) for the callback, which defaults to 1 second.
+- An optional time to live (TTL) for the callback, which defaults to 200 milliseconds.
 
 ##### Example
 
