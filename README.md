@@ -196,17 +196,18 @@ If you have scanning enabled and this class lives within the package, Chirp will
 
 #### Sending a packet
 
-To send a packet, simply create an instance of your packet and publish it via `Chirp#publish`
+To send a packet, simply create an instance of your packet and publish it via `Chirp#publish`. If you want to broadcast it to a specific server/origin, provide it's ID as an additional argument
 
 ##### Example
 
 ```java
 ExamplePacket packet = new ExamplePacket("random string :P");
-chirp.publish(packet);
+chirp.publish(packet); // will send it to every server
+chirp.publish(packet, "server-2") // will send it only to server-2
 ```
 
 > [!NOTE]
-> `Chirp#publish` will broadcast out your packet, but that means the broadcasting server will also receive it! The sane default in Chirp is the broadcasting server ignores this incoming packet. To override this, passing `true` as a second argument in `Chirp#publish` will make handlers process it on the broadcasting server.
+> `Chirp#publish` will broadcast out your packet, but that means the broadcasting server will also receive it! The sane default in Chirp is the broadcasting server ignores this incoming packet. To override this, passing `true` as an additional argument in `Chirp#publish` will make handlers process it on the broadcasting server.
 
 #### Listening to packets
 
@@ -304,9 +305,31 @@ MessagePacket packet = new MessagePacket(receiverName, sender.getName(), message
                                 200L));
 ```
 
+And now simply a listener can respond to the initial packet:
+
+```java
+@ChirpHandler
+public void onMessage(ChirpPacketEvent<MessagePacket> event) {
+    MessagePacket packet = event.getPacket();
+    Player recipient = Bukkit.getPlayer(packet.getRecieverName());
+    if (recipient == null || !recipient.isOnline()) return;
+
+    recipient.sendMessage(
+            mm.deserialize(
+                    "<gray>("
+                            + packet.getSenderName()
+                            + " -> You) <white>"
+                            + packet.getMessage()));
+
+    event.respond(new MessageResponsePacket(true));
+}
+```
+
+If multiple servers respond to an event, the initial broadcasting server will only pick up the first response it detects.
+
 ### Scanner
 
-The easiest way for small projects using Chirp is to use the scanner, which will automatically register packets, listeners and converters.
+The easiest way for small projects using Chirp may be to use the scanner, which will automatically register packets, listeners and converters.
 
 If you want to opt-in to scanning overall but not for specific packets, listeners or converters (for example if they have constructors with arguments), you can set `scan` to false on the specific annotation itself.
 
@@ -323,4 +346,4 @@ chirp
 ```
 
 > [!WARNING]
-> While scanning may seem easy at first, if you use any sort of obfuscation or your package gets relocated, it will very likely break the scanner. In this case, manual registration would be required.
+> If you use any sort of obfuscation or your package gets relocated, it will very likely break the scanner. In these cases, manual registration would be recommende.
