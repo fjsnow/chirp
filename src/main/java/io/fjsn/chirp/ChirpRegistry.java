@@ -29,6 +29,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
 public class ChirpRegistry {
@@ -37,7 +38,7 @@ public class ChirpRegistry {
     private final Map<String, Class<?>> packetRegistry;
     private final Map<Object, List<HandlerMethod>> listenerRegistry;
 
-    private final Map<UUID, ChirpCallback<?>> callbackRegistry = new HashMap<>();
+    private final Map<UUID, ChirpCallback<?>> callbackRegistry;
 
     public static String normalizeTypeName(Type type) {
         if (type instanceof Class<?> clazz) {
@@ -80,6 +81,7 @@ public class ChirpRegistry {
         this.packetRegistry = new HashMap<>();
         this.converterRegistry = new HashMap<>();
         this.listenerRegistry = new HashMap<>();
+        this.callbackRegistry = new ConcurrentHashMap<>();
     }
 
     public Map<String, FieldConverter<?>> getConverterRegistry() {
