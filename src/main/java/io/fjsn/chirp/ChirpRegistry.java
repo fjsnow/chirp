@@ -12,6 +12,7 @@ import io.fjsn.chirp.converter.impl.IntegerConverter;
 import io.fjsn.chirp.converter.impl.ListConverter;
 import io.fjsn.chirp.converter.impl.LongConverter;
 import io.fjsn.chirp.converter.impl.MapConverter;
+import io.fjsn.chirp.converter.impl.OptionalConverter;
 import io.fjsn.chirp.converter.impl.SetConverter;
 import io.fjsn.chirp.converter.impl.ShortConverter;
 import io.fjsn.chirp.converter.impl.StringConverter;
@@ -30,6 +31,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
@@ -130,38 +132,29 @@ public class ChirpRegistry {
 
     public void registerDefaultConverters() {
         long startTime = System.currentTimeMillis();
-        registerConverter(boolean.class, new BooleanConverter());
-        registerConverter(Boolean.class, new BooleanConverter());
-
-        registerConverter(byte.class, new ByteConverter());
-        registerConverter(Byte.class, new ByteConverter());
-
-        registerConverter(char.class, new CharacterConverter());
-        registerConverter(Character.class, new CharacterConverter());
-
-        registerConverter(double.class, new DoubleConverter());
-        registerConverter(Double.class, new DoubleConverter());
-
-        registerConverter(float.class, new FloatConverter());
-        registerConverter(Float.class, new FloatConverter());
-
-        registerConverter(int.class, new IntegerConverter());
-        registerConverter(Integer.class, new IntegerConverter());
-
-        registerConverter(long.class, new LongConverter());
-        registerConverter(Long.class, new LongConverter());
-
-        registerConverter(short.class, new ShortConverter());
-        registerConverter(Short.class, new ShortConverter());
-
+        registerPrimitiveAndWrapperConverter(boolean.class, Boolean.class, new BooleanConverter());
+        registerPrimitiveAndWrapperConverter(byte.class, Byte.class, new ByteConverter());
+        registerPrimitiveAndWrapperConverter(char.class, Character.class, new CharacterConverter());
+        registerPrimitiveAndWrapperConverter(double.class, Double.class, new DoubleConverter());
+        registerPrimitiveAndWrapperConverter(float.class, Float.class, new FloatConverter());
+        registerPrimitiveAndWrapperConverter(int.class, Integer.class, new IntegerConverter());
+        registerPrimitiveAndWrapperConverter(long.class, Long.class, new LongConverter());
+        registerPrimitiveAndWrapperConverter(short.class, Short.class, new ShortConverter());
         registerConverter(String.class, new StringConverter());
         registerConverter(UUID.class, new UUIDConverter());
-
         registerConverter(List.class, new ListConverter());
         registerConverter(Set.class, new SetConverter());
         registerConverter(Map.class, new MapConverter());
+        registerConverter(Optional.class, new OptionalConverter());
+
         long endTime = System.currentTimeMillis();
         ChirpLogger.info("Registered default converters in " + (endTime - startTime) + "ms.");
+    }
+
+    private <T> void registerPrimitiveAndWrapperConverter(
+            Class<T> primitiveType, Class<T> wrapperType, FieldConverter<T> converter) {
+        registerConverter(primitiveType, converter);
+        registerConverter(wrapperType, converter);
     }
 
     public void registerConverter(Class<?> genericType, FieldConverter<?> converter) {
