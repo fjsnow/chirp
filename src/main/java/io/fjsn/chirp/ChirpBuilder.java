@@ -50,13 +50,39 @@ public class ChirpBuilder {
         return this;
     }
 
+    public ChirpBuilder converters(Map<Class<?>, FieldConverter<?>> converters) {
+        for (Entry<Class<?>, FieldConverter<?>> entry : converters.entrySet())
+            this.converter(entry.getKey(), entry.getValue());
+        return this;
+    }
+
     public ChirpBuilder packet(Class<?> packetClass) {
         packetClasses.add(packetClass);
         return this;
     }
 
+    public ChirpBuilder packets(Class<?>... packetClasses) {
+        for (Class<?> packetClass : packetClasses) this.packet(packetClass);
+        return this;
+    }
+
+    public ChirpBuilder packets(List<Class<?>> packetClasses) {
+        for (Class<?> packetClass : packetClasses) this.packet(packetClass);
+        return this;
+    }
+
     public ChirpBuilder listener(Object listenerObject) {
         listenerObjects.add(listenerObject);
+        return this;
+    }
+
+    public ChirpBuilder listeners(Object... listenerObjects) {
+        for (Object listenerObject : listenerObjects) this.listener(listenerObject);
+        return this;
+    }
+
+    public ChirpBuilder listeners(List<Object> listenerObjects) {
+        for (Object listenerObject : listenerObjects) this.listener(listenerObject);
         return this;
     }
 
