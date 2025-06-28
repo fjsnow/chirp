@@ -1,6 +1,5 @@
 package io.fjsn.chirp.internal;
 
-
 import java.util.logging.Level;
 import java.util.logging.Logger;
 

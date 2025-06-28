@@ -1,7 +1,13 @@
 package io.fjsn.chirp.converter;
 
-public interface FieldConverter<T> {
-    String serialize(T value);
+import com.google.gson.JsonElement;
 
-    T deserialize(String value);
+import io.fjsn.chirp.ChirpRegistry;
+
+import java.lang.reflect.Type;
+
+public interface FieldConverter<T> {
+    JsonElement serialize(T value, Type type, ChirpRegistry registry);
+
+    T deserialize(JsonElement json, Type type, ChirpRegistry registry);
 }

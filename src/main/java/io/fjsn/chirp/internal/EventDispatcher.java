@@ -4,8 +4,9 @@ import io.fjsn.chirp.ChirpCallback;
 import io.fjsn.chirp.ChirpPacketEvent;
 import io.fjsn.chirp.ChirpRegistry;
 
+import java.lang.invoke.MethodHandle;
+import java.lang.invoke.WrongMethodTypeException;
 import java.lang.reflect.InvocationTargetException;
-import java.lang.reflect.Method;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -27,17 +28,36 @@ public class EventDispatcher {
             Object listenerInstance = entry.getKey();
             List<HandlerMethod> handlerMethods = entry.getValue();
             for (HandlerMethod handlerMethod : handlerMethods) {
-                Method method = handlerMethod.method;
-                Class<?>[] params = method.getParameterTypes();
+                MethodHandle methodHandle = handlerMethod.methodHandle;
 
-                if (params.length != 1) continue;
-                if (!ChirpPacketEvent.class.isAssignableFrom(params[0])) continue;
                 if (!handlerMethod.expectedPacketClass.isAssignableFrom(packetClass)) continue;
 
                 try {
-                    method.invoke(listenerInstance, event);
-                } catch (IllegalAccessException | InvocationTargetException e) {
-                    ChirpLogger.severe("Failed to invoke handler: " + e.getMessage());
+                    methodHandle.invoke(listenerInstance, event);
+                } catch (WrongMethodTypeException e) {
+                    ChirpLogger.severe(
+                            "MethodHandle invocation failed due to wrong method type for "
+                                    + handlerMethod.methodHandle
+                                    + ": "
+                                    + e.getMessage());
+                } catch (Throwable e) {
+                    ChirpLogger.severe(
+                            "Failed to invoke handler "
+                                    + handlerMethod.methodHandle
+                                    + " for listener "
+                                    + listenerInstance.getClass().getName()
+                                    + ": "
+                                    + e.getMessage());
+                    if (e instanceof InvocationTargetException) {
+                        ChirpLogger.severe(
+                                "  Cause: "
+                                        + ((InvocationTargetException) e)
+                                                .getTargetException()
+                                                .getMessage());
+                        ((InvocationTargetException) e).getTargetException().printStackTrace();
+                    } else {
+                        e.printStackTrace();
+                    }
                 }
             }
         }
@@ -45,12 +65,16 @@ public class EventDispatcher {
 
     public void dispatchEventToResponders(ChirpPacketEvent<?> event) {
         UUID respondingTo = event.getRespondingTo();
-        if (respondingTo == null) throw new IllegalArgumentException("Event is not a response");
+        if (respondingTo == null)
+            throw new IllegalArgumentException(
+                    "Event is not a response (missing respondingTo ID).");
 
         ChirpCallback<?> rawCallback = registry.getCallbackRegistry().get(respondingTo);
         if (rawCallback == null) {
             ChirpLogger.warning(
-                    "No callback was found for ID, perhaps it timed out? ID: " + respondingTo);
+                    "No callback was found for ID, perhaps it timed out or was already handled? ID:"
+                            + " "
+                            + respondingTo);
             return;
         }
 
@@ -58,13 +82,31 @@ public class EventDispatcher {
         registry.getCallbackRegistry().remove(respondingTo);
 
         try {
+            Class<?> receivedPacketClass = event.getPacket().getClass();
+            Class<?> expectedResponseClass = rawCallback.getExpectedResponseClass();
+
+            if (!expectedResponseClass.isAssignableFrom(receivedPacketClass)) {
+                ChirpLogger.severe(
+                        "Response type mismatch for callback ID "
+                                + respondingTo
+                                + ": Expected "
+                                + expectedResponseClass.getName()
+                                + " but received "
+                                + receivedPacketClass.getName());
+                return;
+            }
+
             @SuppressWarnings("unchecked")
             ChirpCallback<Object> responder = (ChirpCallback<Object>) rawCallback;
             @SuppressWarnings("unchecked")
             ChirpPacketEvent<Object> typedEvent = (ChirpPacketEvent<Object>) event;
             responder.getOnResponse().accept(typedEvent);
         } catch (Exception e) {
-            ChirpLogger.severe("Failed to invoke callback method: " + e.getMessage());
+            ChirpLogger.severe(
+                    "Failed to invoke callback consumer for ID "
+                            + respondingTo
+                            + ": "
+                            + e.getMessage());
         }
     }
 }

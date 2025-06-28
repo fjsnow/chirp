@@ -1,6 +1,5 @@
 package io.fjsn.chirp;
 
-import io.fjsn.chirp.annotation.ChirpPacket;
 import io.fjsn.chirp.converter.FieldConverter;
 import io.fjsn.chirp.internal.ChirpLogger;
 import io.fjsn.chirp.internal.EventDispatcher;
@@ -55,6 +54,7 @@ public class Chirp {
     }
 
     public void connect(String redisHost, int redisPort, String redisPassword) {
+        long startTime = System.currentTimeMillis();
         JedisPoolConfig redisConfig = new JedisPoolConfig();
         if (redisPassword == null || redisPassword.isEmpty()) {
             this.jedisPool = new JedisPool(redisConfig, redisHost, redisPort, 2000);
@@ -71,8 +71,16 @@ public class Chirp {
                         "Failed to connect to Redis: Unexpected response " + response);
             }
         } catch (Exception e) {
+            long endTime = System.currentTimeMillis();
+            ChirpLogger.severe(
+                    "Error connecting to Redis in "
+                            + (endTime - startTime)
+                            + "ms: "
+                            + e.getMessage());
             throw new RuntimeException("Error connecting to Redis: " + e.getMessage(), e);
         }
+        long endTime = System.currentTimeMillis();
+        ChirpLogger.info("Connected to Redis in " + (endTime - startTime) + "ms.");
     }
 
     public void cleanup() {
@@ -104,6 +112,7 @@ public class Chirp {
     }
 
     public void subscribe() {
+        long startTime = System.nanoTime();
         if (jedisPool == null) {
             throw new IllegalStateException("JedisPool not initialized. Call setup() first.");
         }
@@ -115,10 +124,13 @@ public class Chirp {
                                         new JedisSubscriber(this, registry, eventDispatcher);
                                 jedis.subscribe(subscriber, channel);
                             } catch (Exception e) {
+                                ChirpLogger.severe(
+                                        "Error subscribing to main channel: " + e.getMessage());
                                 throw new RuntimeException(
                                         "Error subscribing to main channel: " + e.getMessage());
                             }
-                        })
+                        },
+                        "Chirp-Subscriber-Main")
                 .start();
 
         new Thread(
@@ -128,13 +140,26 @@ public class Chirp {
                                         new JedisSubscriber(this, registry, eventDispatcher);
                                 jedis.subscribe(subscriber, channel + ":" + origin);
                             } catch (Exception e) {
+                                ChirpLogger.severe(
+                                        "Error subscribing to service channel: " + e.getMessage());
                                 throw new RuntimeException(
                                         "Error subscribing to service channel: " + e.getMessage());
                             }
-                        })
+                        },
+                        "Chirp-Subscriber-Service")
                 .start();
 
-        ChirpLogger.info("Subscribed to channels: " + channel + " and " + channel + ":" + origin);
+        long endTime = System.nanoTime();
+        ChirpLogger.info(
+                "Subscribed to channels: "
+                        + channel
+                        + " and "
+                        + channel
+                        + ":"
+                        + origin
+                        + " in "
+                        + (endTime - startTime) / 1_000_000.0
+                        + "ms.");
     }
 
     public void publish(Object packet) {
@@ -167,14 +192,29 @@ public class Chirp {
 
     public <T> void publish(
             Object packet, String destination, boolean self, ChirpCallback<T> callback) {
+        long startTime = System.nanoTime();
         if (jedisPool == null) {
             throw new IllegalStateException("JedisPool not initialized. Call setup() first.");
         }
         if (packet == null) {
             throw new IllegalArgumentException("Packet cannot be null");
         }
-        if (!packet.getClass().isAnnotationPresent(ChirpPacket.class)) {
-            throw new IllegalArgumentException("Packet must be annotated with @ChirpPacket");
+
+        String type =
+                packet.getClass()
+                        .getSimpleName()
+                        .replaceAll("([a-z])([A-Z])", "$1_$2")
+                        .toUpperCase();
+
+        if (!registry.getPacketRegistry().containsKey(type)) {
+            long endTime = System.nanoTime();
+            ChirpLogger.severe(
+                    "Failed to publish packet (type not registered) in "
+                            + (endTime - startTime) / 1_000_000.0
+                            + "ms: Packet type "
+                            + type
+                            + " is not registered");
+            throw new IllegalArgumentException("Packet type " + type + " is not registered");
         }
 
         UUID packetId = UUID.randomUUID();
@@ -193,9 +233,13 @@ public class Chirp {
         try (Jedis jedis = jedisPool.getResource()) {
             jedis.publish(
                     destination == null ? channel : channel + ":" + destination, serializedJson);
+            long endTime = System.nanoTime();
             ChirpLogger.debug(
                     "Published packet to channel: "
-                            + (destination == null ? channel : destination));
+                            + (destination == null ? channel : destination)
+                            + " in "
+                            + (endTime - startTime) / 1_000_000.0
+                            + "ms.");
             ChirpLogger.debug(
                     "Raw packet: "
                             + PacketSerializer.toPrettyJsonString(
@@ -208,19 +252,39 @@ public class Chirp {
                                     System.currentTimeMillis(),
                                     registry));
         } catch (Exception e) {
-            ChirpLogger.severe("Failed to publish packet: " + e.getMessage());
+            long endTime = System.nanoTime();
+            ChirpLogger.severe(
+                    "Failed to publish packet in "
+                            + (endTime - startTime) / 1_000_000.0
+                            + "ms: "
+                            + e.getMessage());
         }
     }
 
     public void respond(ChirpPacketEvent<?> event, Object response, boolean self) {
+        long startTime = System.nanoTime();
         if (jedisPool == null) {
             throw new IllegalStateException("JedisPool not initialized. Call setup() first.");
         }
         if (response == null) {
             throw new IllegalArgumentException("Response cannot be null");
         }
-        if (!response.getClass().isAnnotationPresent(ChirpPacket.class)) {
-            throw new IllegalArgumentException("Response must be annotated with @ChirpPacket");
+
+        String type =
+                response.getClass()
+                        .getSimpleName()
+                        .replaceAll("([a-z])([A-Z])", "$1_$2")
+                        .toUpperCase();
+
+        if (!registry.getPacketRegistry().containsKey(type)) {
+            long endTime = System.nanoTime();
+            ChirpLogger.severe(
+                    "Failed to respond (response type not registered) in "
+                            + (endTime - startTime) / 1_000_000.0
+                            + "ms: Packet type "
+                            + type
+                            + " is not registered");
+            throw new IllegalArgumentException("Packet type " + type + " is not registered");
         }
 
         UUID packetId = UUID.randomUUID();
@@ -237,7 +301,15 @@ public class Chirp {
 
         try (Jedis jedis = jedisPool.getResource()) {
             jedis.publish(channel + ":" + event.getOrigin(), serializedJson);
-            ChirpLogger.debug("Published packet to channel: " + channel + ":" + event.getOrigin());
+            long endTime = System.nanoTime();
+            ChirpLogger.debug(
+                    "Published response to channel: "
+                            + channel
+                            + ":"
+                            + event.getOrigin()
+                            + " in "
+                            + (endTime - startTime) / 1_000_000.0
+                            + "ms.");
             ChirpLogger.debug(
                     "Raw packet: "
                             + PacketSerializer.toPrettyJsonString(
@@ -250,7 +322,12 @@ public class Chirp {
                                     System.currentTimeMillis(),
                                     registry));
         } catch (Exception e) {
-            ChirpLogger.severe("Failed to respond to event: " + e.getMessage());
+            long endTime = System.nanoTime();
+            ChirpLogger.severe(
+                    "Failed to respond to event in "
+                            + (endTime - startTime) / 1_000_000.0
+                            + "ms: "
+                            + e.getMessage());
         }
     }
 

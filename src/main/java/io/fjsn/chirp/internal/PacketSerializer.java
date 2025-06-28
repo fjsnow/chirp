@@ -1,13 +1,18 @@
 package io.fjsn.chirp.internal;
 
-import com.google.gson.*;
+import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonNull;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
 
 import io.fjsn.chirp.ChirpRegistry;
-import io.fjsn.chirp.annotation.ChirpField;
 import io.fjsn.chirp.converter.FieldConverter;
 
-import java.lang.reflect.*;
-import java.util.*;
+import java.lang.reflect.ParameterizedType;
+import java.lang.reflect.Type;
+import java.util.UUID;
 
 public class PacketSerializer {
 
@@ -24,11 +29,9 @@ public class PacketSerializer {
         if (packet == null) throw new IllegalArgumentException("Packet cannot be null");
 
         JsonObject json = new JsonObject();
+        Class<?> packetClass = packet.getClass();
         String type =
-                packet.getClass()
-                        .getSimpleName()
-                        .replaceAll("([a-z])([A-Z])", "$1_$2")
-                        .toUpperCase();
+                packetClass.getSimpleName().replaceAll("([a-z])([A-Z])", "$1_$2").toUpperCase();
 
         json.addProperty("packetId", packetId.toString());
         json.addProperty("type", type);
@@ -40,17 +43,26 @@ public class PacketSerializer {
 
         JsonObject data = new JsonObject();
 
-        for (Field field : packet.getClass().getDeclaredFields()) {
-            if (!field.isAnnotationPresent(ChirpField.class)) continue;
+        PacketSchema schema = registry.getPacketSchemaRegistry().get(type);
+        if (schema == null) {
+            throw new IllegalStateException(
+                    "Packet schema not found for type: "
+                            + type
+                            + ". Ensure it's registered during Chirp initialization.");
+        }
 
-            field.setAccessible(true);
-
+        for (FieldSchema fieldSchema : schema.fields) {
             try {
-                Object value = field.get(packet);
-                JsonElement element = serializeValue(value, field.getGenericType(), registry);
-                data.add(field.getName(), element);
+                Object value = fieldSchema.field.get(packet);
+                JsonElement element = serializeValue(value, fieldSchema.genericType, registry);
+                data.add(fieldSchema.fieldName, element);
             } catch (IllegalAccessException e) {
-                throw new RuntimeException("Failed to access field: " + field.getName(), e);
+                throw new RuntimeException(
+                        "Failed to access field '"
+                                + fieldSchema.fieldName
+                                + "' during serialization using schema: "
+                                + e.getMessage(),
+                        e);
             }
         }
 
@@ -66,29 +78,29 @@ public class PacketSerializer {
         String type = json.get("type").getAsString().toUpperCase();
         JsonObject data = json.getAsJsonObject("data");
 
-        Class<?> packetClass = registry.getPacketRegistry().get(type);
-        if (packetClass == null) {
-            throw new IllegalArgumentException("Unknown packet type: " + type);
+        PacketSchema schema = registry.getPacketSchemaRegistry().get(type);
+        if (schema == null) {
+            throw new IllegalStateException(
+                    "Unknown packet type or schema not found for: "
+                            + type
+                            + ". Ensure it's registered during Chirp initialization.");
         }
 
-        Object packet = packetClass.getDeclaredConstructor().newInstance();
+        Object packet = schema.noArgsConstructor.newInstance();
 
-        for (Field field : packetClass.getDeclaredFields()) {
-            if (!field.isAnnotationPresent(ChirpField.class)) continue;
-
-            field.setAccessible(true);
-            String fieldName = field.getName();
+        for (FieldSchema fieldSchema : schema.fields) {
+            String fieldName = fieldSchema.fieldName;
 
             if (!data.has(fieldName) || data.get(fieldName).isJsonNull()) {
-                if (!field.getType().isPrimitive()) {
-                    field.set(packet, null);
+                if (!fieldSchema.rawType.isPrimitive()) {
+                    fieldSchema.field.set(packet, null);
                 }
                 continue;
             }
 
             JsonElement element = data.get(fieldName);
-            Object value = deserializeValue(element, field.getGenericType(), registry);
-            field.set(packet, value);
+            Object value = deserializeValue(element, fieldSchema.genericType, registry);
+            fieldSchema.field.set(packet, value);
         }
 
         return packet;
@@ -96,9 +108,15 @@ public class PacketSerializer {
 
     public static Object fromJsonString(String jsonString, ChirpRegistry registry)
             throws ReflectiveOperationException {
-
+        long startTime = System.nanoTime();
         JsonObject json = JsonParser.parseString(jsonString).getAsJsonObject();
-        return deserialize(json, registry);
+        Object deserialized = deserialize(json, registry);
+        long endTime = System.nanoTime();
+        ChirpLogger.debug(
+                "Deserialized JSON string to object in "
+                        + (endTime - startTime) / 1_000_000.0
+                        + "ms.");
+        return deserialized;
     }
 
     public static String toJsonString(
@@ -110,10 +128,16 @@ public class PacketSerializer {
             boolean self,
             long sent,
             ChirpRegistry registry) {
-
+        long startTime = System.nanoTime();
         JsonObject json =
                 serialize(packet, packetId, origin, responding, respondingTo, self, sent, registry);
-        return json.toString();
+        String jsonString = json.toString();
+        long endTime = System.nanoTime();
+        ChirpLogger.debug(
+                "Serialized object to JSON string in "
+                        + (endTime - startTime) / 1_000_000.0
+                        + "ms.");
+        return jsonString;
     }
 
     public static String toPrettyJsonString(
@@ -125,139 +149,140 @@ public class PacketSerializer {
             boolean self,
             long sent,
             ChirpRegistry registry) {
+
+        long startTime = System.nanoTime();
         JsonObject json =
                 serialize(packet, packetId, origin, responding, respondingTo, self, sent, registry);
         Gson gson = new GsonBuilder().setPrettyPrinting().create();
-        return gson.toJson(json);
+        String prettyJson = gson.toJson(json);
+        long endTime = System.nanoTime();
+        ChirpLogger.debug(
+                "Serialized object to pretty JSON string in "
+                        + (endTime - startTime) / 1_000_000.0
+                        + "ms.");
+        return prettyJson;
     }
 
-    private static JsonElement serializeValue(Object value, Type type, ChirpRegistry registry) {
+    public static JsonElement serializeValue(Object value, Type type, ChirpRegistry registry) {
         if (value == null) return JsonNull.INSTANCE;
 
-        if (type instanceof ParameterizedType pt) {
-            Type raw = pt.getRawType();
+        String lookupKey;
+        if (type instanceof ParameterizedType) {
 
-            if (raw == List.class || raw == Set.class) {
-                JsonArray array = new JsonArray();
-                Type itemType = pt.getActualTypeArguments()[0];
-                for (Object item : (Collection<?>) value) {
-                    array.add(serializeValue(item, itemType, registry));
-                }
-                return array;
-            }
+            lookupKey = ChirpRegistry.normalizeTypeName(((ParameterizedType) type).getRawType());
+        } else {
 
-            if (raw == Map.class) {
+            lookupKey = ChirpRegistry.normalizeTypeName(type);
+        }
+
+        @SuppressWarnings("unchecked")
+        FieldConverter<Object> converter =
+                (FieldConverter<Object>) registry.getConverterRegistry().get(lookupKey);
+
+        if (converter != null) {
+            return converter.serialize(value, type, registry);
+        }
+
+        if (type instanceof Class<?> cls
+                && !cls.isEnum()
+                && !cls.isPrimitive()
+                && !cls.isArray()
+                && !cls.isInterface()) {
+            ObjectSchema objectSchema = registry.getObjectSchemaRegistry().get(lookupKey);
+
+            if (objectSchema == null) {
+                throw new IllegalStateException(
+                        "No pre-computed schema found for nested object type: "
+                                + type.getTypeName()
+                                + ". All custom @ChirpField types must have schemas registered"
+                                + " during initialization or have a FieldConverter.");
+            } else {
                 JsonObject obj = new JsonObject();
-                Type keyType = pt.getActualTypeArguments()[0];
-                Type valueType = pt.getActualTypeArguments()[1];
-
-                for (Map.Entry<?, ?> entry : ((Map<?, ?>) value).entrySet()) {
-                    JsonElement key = serializeValue(entry.getKey(), keyType, registry);
-                    JsonElement val = serializeValue(entry.getValue(), valueType, registry);
-                    obj.add(key.getAsString(), val); // assumes keys are string-serializable
+                for (FieldSchema fieldSchema : objectSchema.fields) {
+                    try {
+                        Object nestedVal = fieldSchema.field.get(value);
+                        obj.add(
+                                fieldSchema.fieldName,
+                                serializeValue(nestedVal, fieldSchema.genericType, registry));
+                    } catch (IllegalAccessException e) {
+                        throw new RuntimeException(
+                                "Failed to access nested field '"
+                                        + fieldSchema.fieldName
+                                        + "' during serialization using schema: "
+                                        + e.getMessage(),
+                                e);
+                    }
                 }
                 return obj;
             }
         }
 
-        String typeKey = ChirpRegistry.normalizeTypeName(type);
-        @SuppressWarnings("unchecked")
-        FieldConverter<Object> converter =
-                (FieldConverter<Object>) registry.getConverterRegistry().get(typeKey);
-
-        if (converter != null) {
-            return new JsonPrimitive(converter.serialize(value));
-        }
-
-        if (type instanceof Class<?> cls && !cls.isEnum() && !cls.isPrimitive() && !cls.isArray()) {
-            JsonObject obj = new JsonObject();
-            for (Field nestedField : cls.getDeclaredFields()) {
-                if (!nestedField.isAnnotationPresent(ChirpField.class)) continue;
-                nestedField.setAccessible(true);
-                try {
-                    Object nestedVal = nestedField.get(value);
-                    obj.add(
-                            nestedField.getName(),
-                            serializeValue(nestedVal, nestedField.getGenericType(), registry));
-                } catch (IllegalAccessException e) {
-                    throw new RuntimeException(
-                            "Failed to access nested field: " + nestedField.getName(), e);
-                }
-            }
-            return obj;
-        }
-
         throw new IllegalArgumentException(
-                "No converter or strategy for type: " + type.getTypeName());
+                "No converter or strategy for type: "
+                        + type.getTypeName()
+                        + " (for value: "
+                        + value
+                        + ")");
     }
 
-    private static Object deserializeValue(JsonElement json, Type type, ChirpRegistry registry) {
+    public static Object deserializeValue(JsonElement json, Type type, ChirpRegistry registry) {
         if (json == null || json.isJsonNull()) return null;
 
-        if (type instanceof ParameterizedType pt) {
-            Type raw = pt.getRawType();
-
-            if (raw == List.class) {
-                List<Object> list = new ArrayList<>();
-                Type itemType = pt.getActualTypeArguments()[0];
-                for (JsonElement el : json.getAsJsonArray()) {
-                    list.add(deserializeValue(el, itemType, registry));
-                }
-                return list;
-            }
-
-            if (raw == Set.class) {
-                Set<Object> set = new HashSet<>();
-                Type itemType = pt.getActualTypeArguments()[0];
-                for (JsonElement el : json.getAsJsonArray()) {
-                    set.add(deserializeValue(el, itemType, registry));
-                }
-                return set;
-            }
-
-            if (raw == Map.class) {
-                Map<Object, Object> map = new HashMap<>();
-                Type keyType = pt.getActualTypeArguments()[0];
-                Type valType = pt.getActualTypeArguments()[1];
-                for (Map.Entry<String, JsonElement> entry : json.getAsJsonObject().entrySet()) {
-                    Object key =
-                            deserializeValue(new JsonPrimitive(entry.getKey()), keyType, registry);
-                    Object val = deserializeValue(entry.getValue(), valType, registry);
-                    map.put(key, val);
-                }
-                return map;
-            }
+        String lookupKey;
+        if (type instanceof ParameterizedType) {
+            lookupKey = ChirpRegistry.normalizeTypeName(((ParameterizedType) type).getRawType());
+        } else {
+            lookupKey = ChirpRegistry.normalizeTypeName(type);
         }
 
-        String typeKey = ChirpRegistry.normalizeTypeName(type);
-        FieldConverter<?> converter = registry.getConverterRegistry().get(typeKey);
+        FieldConverter<?> converter = registry.getConverterRegistry().get(lookupKey);
 
         if (converter != null) {
-            return converter.deserialize(json.getAsString());
+            return converter.deserialize(json, type, registry);
         }
 
-        if (type instanceof Class<?> cls && !cls.isEnum() && !cls.isPrimitive() && !cls.isArray()) {
-            try {
-                Object instance = cls.getDeclaredConstructor().newInstance();
-                JsonObject obj = json.getAsJsonObject();
-                for (Field nestedField : cls.getDeclaredFields()) {
-                    if (!nestedField.isAnnotationPresent(ChirpField.class)) continue;
-                    nestedField.setAccessible(true);
-                    if (obj.has(nestedField.getName())) {
-                        JsonElement el = obj.get(nestedField.getName());
-                        Object nestedVal =
-                                deserializeValue(el, nestedField.getGenericType(), registry);
-                        nestedField.set(instance, nestedVal);
+        if (type instanceof Class<?> cls
+                && !cls.isEnum()
+                && !cls.isPrimitive()
+                && !cls.isArray()
+                && !cls.isInterface()) {
+            ObjectSchema objectSchema = registry.getObjectSchemaRegistry().get(lookupKey);
+
+            if (objectSchema == null) {
+                throw new IllegalStateException(
+                        "No pre-computed schema found for nested object type: "
+                                + type.getTypeName()
+                                + ". All custom @ChirpField types must have schemas registered"
+                                + " during initialization or have a FieldConverter.");
+            } else {
+                try {
+                    Object instance = objectSchema.noArgsConstructor.newInstance();
+                    JsonObject obj = json.getAsJsonObject();
+                    for (FieldSchema fieldSchema : objectSchema.fields) {
+                        if (obj.has(fieldSchema.fieldName)) {
+                            JsonElement el = obj.get(fieldSchema.fieldName);
+                            Object nestedVal =
+                                    deserializeValue(el, fieldSchema.genericType, registry);
+                            fieldSchema.field.set(instance, nestedVal);
+                        }
                     }
+                    return instance;
+                } catch (ReflectiveOperationException e) {
+                    throw new RuntimeException(
+                            "Failed to deserialize nested object of type: "
+                                    + cls.getName()
+                                    + " using schema: "
+                                    + e.getMessage(),
+                            e);
                 }
-                return instance;
-            } catch (ReflectiveOperationException e) {
-                throw new RuntimeException(
-                        "Failed to deserialize nested object of type: " + cls.getName(), e);
             }
         }
 
         throw new IllegalArgumentException(
-                "No converter or strategy for type: " + type.getTypeName());
+                "No converter or strategy for type: "
+                        + type.getTypeName()
+                        + " (for JSON: "
+                        + json
+                        + ")");
     }
 }
