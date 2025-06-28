@@ -56,6 +56,8 @@ public class ChirpRegistry {
 
     private final ConcurrentHashMap<String, Boolean> inProgressSchemas;
 
+    private Thread callbackRemoverThread;
+
     public static String normalizeTypeName(Type type) {
         if (type instanceof Class<?> clazz) {
             return normalizeTypeName(clazz);
@@ -510,7 +512,7 @@ public class ChirpRegistry {
     }
 
     public void setupCallbackRemoverThread() {
-        Thread callbackRemoverThread =
+        callbackRemoverThread =
                 new Thread(
                         () -> {
                             while (!Thread.currentThread().isInterrupted()) {
@@ -528,9 +530,9 @@ public class ChirpRegistry {
                                             "Error in callback remover thread: " + e.getMessage());
                                 }
                             }
-                        });
+                        },
+                        "Chirp-CallbackRemover");
 
-        callbackRemoverThread.setName("Chirp-CallbackRemover");
         callbackRemoverThread.setDaemon(true);
         callbackRemoverThread.start();
     }
@@ -743,6 +745,12 @@ public class ChirpRegistry {
         packetSchemaRegistry.clear();
         objectSchemaRegistry.clear();
         inProgressSchemas.clear();
+
+        if (callbackRemoverThread != null && callbackRemoverThread.isAlive()) {
+            callbackRemoverThread.interrupt();
+            callbackRemoverThread = null;
+        }
+
         ChirpLogger.debug("Cleared all registrations");
     }
 }
