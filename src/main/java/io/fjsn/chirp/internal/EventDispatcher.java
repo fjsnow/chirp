@@ -78,9 +78,6 @@ public class EventDispatcher {
             return;
         }
 
-        ChirpLogger.debug("Removing callback for ID: " + respondingTo);
-        registry.getCallbackRegistry().remove(respondingTo);
-
         try {
             Class<?> receivedPacketClass = event.getPacket().getClass();
             Class<?> expectedResponseClass = rawCallback.getExpectedResponseClass();
@@ -93,20 +90,42 @@ public class EventDispatcher {
                                 + expectedResponseClass.getName()
                                 + " but received "
                                 + receivedPacketClass.getName());
+
+                registry.getCallbackRegistry().remove(respondingTo);
                 return;
             }
 
             @SuppressWarnings("unchecked")
             ChirpCallback<Object> responder = (ChirpCallback<Object>) rawCallback;
+
             @SuppressWarnings("unchecked")
             ChirpPacketEvent<Object> typedEvent = (ChirpPacketEvent<Object>) event;
-            responder.getOnResponse().accept(typedEvent);
+
+            if (responder.isCollectingResponses()) {
+                ChirpLogger.debug(
+                        "Collecting response for ID "
+                                + respondingTo
+                                + ". Current count: "
+                                + (responder.getCollectedResponses().size() + 1));
+                responder.addCollectedResponse(typedEvent);
+
+                if (responder.hasReachedMaxResponses()) {
+                    ChirpLogger.debug(
+                            "Max responses reached for callback ID: "
+                                    + respondingTo
+                                    + ". Invoking consumer.");
+                    responder.getOnMultipleResponse().accept(responder.getCollectedResponses());
+                    registry.getCallbackRegistry().remove(respondingTo);
+                }
+            } else {
+                ChirpLogger.debug("Invoking single response consumer for ID: " + respondingTo);
+                responder.getOnSingleResponse().accept(typedEvent);
+                registry.getCallbackRegistry().remove(respondingTo);
+            }
         } catch (Exception e) {
             ChirpLogger.severe(
-                    "Failed to invoke callback consumer for ID "
-                            + respondingTo
-                            + ": "
-                            + e.getMessage());
+                    "Failed to process callback for ID " + respondingTo + ": " + e.getMessage());
+            registry.getCallbackRegistry().remove(respondingTo);
         }
     }
 }

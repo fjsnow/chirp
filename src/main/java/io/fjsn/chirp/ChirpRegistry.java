@@ -340,7 +340,6 @@ public class ChirpRegistry {
 
         String type =
                 packetClass.getSimpleName().replaceAll("([a-z])([A-Z])", "$1_$2").toUpperCase();
-        String typeKey = normalizeTypeName(packetClass);
 
         if (packetRegistry.containsKey(type)) {
             throw new IllegalArgumentException("Packet type '" + type + "' is already registered");
@@ -370,7 +369,6 @@ public class ChirpRegistry {
                             ChirpLogger.debug(
                                     "Registering EnumConverter for packet field enum: "
                                             + fieldRawType.getName());
-                            @SuppressWarnings({"unchecked", "rawtypes"})
                             FieldConverter<?> enumConverter = new EnumConverter();
                             converterRegistry.put(fieldRawTypeName, enumConverter);
                         }
@@ -501,13 +499,50 @@ public class ChirpRegistry {
             ChirpCallback<?> callback = entry.getValue();
 
             if (callback.isExpired()) {
-                callback.getOnTimeout().run();
+                ChirpLogger.debug("Callback " + packetId + " expired. Handling timeout.");
+                if (callback.isCollectingResponses()) {
+                    if (!callback.getCollectedResponses().isEmpty()) {
+                        ChirpLogger.debug(
+                                "Callback "
+                                        + packetId
+                                        + " expired with "
+                                        + callback.getCollectedResponses().size()
+                                        + " collected responses. Invoking onResponseList.");
+                        try {
+                            @SuppressWarnings("unchecked")
+                            ChirpCallback<Object> typedCallback = (ChirpCallback<Object>) callback;
+                            typedCallback
+                                    .getOnMultipleResponse()
+                                    .accept(typedCallback.getCollectedResponses());
+                        } catch (Exception e) {
+                            ChirpLogger.severe(
+                                    "Error invoking onResponseList for expired callback "
+                                            + packetId
+                                            + ": "
+                                            + e.getMessage());
+                        }
+                    } else {
+                        ChirpLogger.debug(
+                                "Callback "
+                                        + packetId
+                                        + " expired with no collected responses. Invoking"
+                                        + " onTimeout.");
+                        callback.getOnSingleTimeout().run();
+                    }
+                } else {
+                    ChirpLogger.debug(
+                            "Single response callback "
+                                    + packetId
+                                    + " expired. Invoking onTimeout.");
+                    callback.getOnSingleTimeout().run();
+                }
                 toRemove.add(packetId);
             }
         }
 
         for (UUID packetId : toRemove) {
             callbackRegistry.remove(packetId);
+            ChirpLogger.debug("Removed expired callback: " + packetId);
         }
     }
 
