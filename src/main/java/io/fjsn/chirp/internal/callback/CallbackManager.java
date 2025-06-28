@@ -9,37 +9,20 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
-/**
- * Manages the lifecycle of {@link ChirpCallback} instances, including their registration,
- * expiration, and the periodic removal of expired callbacks.
- */
 public class CallbackManager {
 
     private final Map<UUID, ChirpCallback<?>> callbackRegistry;
     private Thread callbackRemoverThread;
     private volatile boolean running = false;
 
-    /** Constructs a new CallbackManager. */
     public CallbackManager() {
         this.callbackRegistry = new ConcurrentHashMap<>();
     }
 
-    /**
-     * Retrieves the internal registry of active callbacks.
-     *
-     * @return A map of packet IDs to their corresponding ChirpCallback instances.
-     */
     public Map<UUID, ChirpCallback<?>> getCallbackRegistry() {
         return callbackRegistry;
     }
 
-    /**
-     * Registers a new callback associated with a specific packet ID.
-     *
-     * @param packetId The unique ID of the packet for which this callback is awaiting a response.
-     * @param callback The {@link ChirpCallback} instance to register.
-     * @throws IllegalArgumentException if packetId or callback is null.
-     */
     public void registerCallback(UUID packetId, ChirpCallback<?> callback) {
         long startTime = System.nanoTime();
         if (packetId == null) {
@@ -59,12 +42,6 @@ public class CallbackManager {
                         + "ms.");
     }
 
-    /**
-     * Scans the registered callbacks and removes any that have expired. If a multi-response
-     * callback expires with collected responses, its {@code onMultipleResponse} consumer is
-     * invoked. Otherwise, or for single-response callbacks, the {@code onSingleTimeout} runnable is
-     * executed.
-     */
     public void removeExpiredCallbacks() {
         List<UUID> toRemove = new ArrayList<>();
         for (Map.Entry<UUID, ChirpCallback<?>> entry : callbackRegistry.entrySet()) {
@@ -121,12 +98,6 @@ public class CallbackManager {
         }
     }
 
-    /**
-     * Starts a dedicated background thread that periodically calls {@link
-     * #removeExpiredCallbacks()}. This ensures that callbacks are cleaned up even if no new
-     * messages are received. The thread is set as a daemon thread, meaning it will not prevent the
-     * JVM from exiting. If the thread is already running, this method does nothing.
-     */
     public void setupCallbackRemoverThread() {
         if (running) {
             ChirpLogger.warning("Callback remover thread is already running.");
@@ -139,37 +110,33 @@ public class CallbackManager {
                         () -> {
                             while (running && !Thread.currentThread().isInterrupted()) {
                                 try {
-                                    Thread.sleep(20L); // Check every 20ms
+                                    Thread.sleep(20L);
                                     removeExpiredCallbacks();
                                 } catch (InterruptedException e) {
                                     ChirpLogger.info("Callback remover thread interrupted.");
-                                    Thread.currentThread().interrupt(); // Restore interrupt status
+                                    Thread.currentThread().interrupt();
                                     break;
                                 } catch (Exception e) {
                                     ChirpLogger.severe(
                                             "Error in callback remover thread: " + e.getMessage());
-                                    e.printStackTrace(); // Log stack trace for unexpected errors
+                                    e.printStackTrace();
                                 }
                             }
                             ChirpLogger.debug("Callback remover thread stopped.");
                         },
                         "Chirp-CallbackRemover");
 
-        callbackRemoverThread.setDaemon(true); // Allow JVM to exit if only daemon threads remain
+        callbackRemoverThread.setDaemon(true);
         callbackRemoverThread.start();
         ChirpLogger.debug("Callback remover thread started.");
     }
 
-    /**
-     * Shuts down the callback remover thread and clears all registered callbacks. This method
-     * should be called during the application shutdown to release resources.
-     */
     public void cleanup() {
-        running = false; // Signal thread to stop
+        running = false;
         if (callbackRemoverThread != null && callbackRemoverThread.isAlive()) {
             callbackRemoverThread.interrupt();
             try {
-                callbackRemoverThread.join(1000); // Wait up to 1 second for the thread to finish
+                callbackRemoverThread.join(1000);
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
                 ChirpLogger.warning(

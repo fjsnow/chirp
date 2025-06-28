@@ -29,13 +29,11 @@ class ChirpTest {
 
     private Chirp chirp;
 
-    // CORRECTED PACKET DEFINITION
     @ChirpPacket
     public static class SimplePacket {
 
         @ChirpField private String data = "test-data";
 
-        // ✅ ADD THIS NO-ARGUMENT CONSTRUCTOR
         public SimplePacket() {}
     }
 
@@ -48,16 +46,13 @@ class ChirpTest {
 
     @Test
     void publishShouldSerializeAndSendPacketToJedis() {
-        // Arrange
         registry.registerPacket(SimplePacket.class);
         SimplePacket packet = new SimplePacket();
         ArgumentCaptor<String> channelCaptor = ArgumentCaptor.forClass(String.class);
         ArgumentCaptor<String> messageCaptor = ArgumentCaptor.forClass(String.class);
 
-        // Act
         chirp.publish(packet);
 
-        // Assert
         verify(jedis).publish(channelCaptor.capture(), messageCaptor.capture());
 
         assertThat(channelCaptor.getValue()).isEqualTo("chirp:test-channel");

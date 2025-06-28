@@ -18,7 +18,6 @@ class PacketSerializerTest {
 
     private ChirpRegistry registry;
 
-    // A simple packet for testing
     @ChirpPacket
     public static class TestPacket {
 
@@ -31,7 +30,6 @@ class PacketSerializerTest {
             this.message = message;
             this.number = number;
         }
-        // Add getters for assertion if needed, or use field-by-field comparison
     }
 
     @BeforeEach
@@ -59,11 +57,9 @@ class PacketSerializerTest {
                         registry);
         TestPacket deserializedPacket = (TestPacket) PacketSerializer.deserialize(json, registry);
 
-        // Assert
         assertThat(deserializedPacket)
                 .isNotNull()
                 .isInstanceOf(TestPacket.class)
-                // AssertJ's field-by-field comparison is perfect for this
                 .usingRecursiveComparison()
                 .isEqualTo(originalPacket);
     }
