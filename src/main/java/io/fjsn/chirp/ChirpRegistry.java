@@ -1,7 +1,5 @@
 package io.fjsn.chirp;
 
-import io.fjsn.chirp.annotation.ChirpConverter;
-import io.fjsn.chirp.annotation.ChirpField;
 import io.fjsn.chirp.annotation.ChirpHandler;
 import io.fjsn.chirp.annotation.ChirpListener;
 import io.fjsn.chirp.annotation.ChirpPacket;
@@ -10,7 +8,6 @@ import io.fjsn.chirp.converter.impl.BooleanConverter;
 import io.fjsn.chirp.converter.impl.ByteConverter;
 import io.fjsn.chirp.converter.impl.CharacterConverter;
 import io.fjsn.chirp.converter.impl.DoubleConverter;
-import io.fjsn.chirp.converter.impl.EnumConverter;
 import io.fjsn.chirp.converter.impl.FloatConverter;
 import io.fjsn.chirp.converter.impl.IntegerConverter;
 import io.fjsn.chirp.converter.impl.ListConverter;
@@ -20,44 +17,56 @@ import io.fjsn.chirp.converter.impl.SetConverter;
 import io.fjsn.chirp.converter.impl.ShortConverter;
 import io.fjsn.chirp.converter.impl.StringConverter;
 import io.fjsn.chirp.converter.impl.UUIDConverter;
-import io.fjsn.chirp.internal.ChirpLogger;
-import io.fjsn.chirp.internal.FieldSchema;
-import io.fjsn.chirp.internal.HandlerMethod;
-import io.fjsn.chirp.internal.ObjectSchema;
-import io.fjsn.chirp.internal.PacketSchema;
+import io.fjsn.chirp.internal.callback.CallbackManager; // NEW: Import CallbackManager
+import io.fjsn.chirp.internal.util.ChirpLogger;
+import io.fjsn.chirp.internal.handler.HandlerMethod;
+import io.fjsn.chirp.internal.schema.ObjectSchema;
+import io.fjsn.chirp.internal.schema.PacketSchema;
+import io.fjsn.chirp.internal.schema.SchemaGenerator; // NEW: Import SchemaGenerator
 
-import org.reflections.Reflections;
-import org.reflections.scanners.Scanners;
-
-import java.lang.reflect.Constructor;
-import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.stream.Collectors;
 
+/**
+ * The central registry for Chirp components, including packet types, field converters, and event
+ * listeners. It orchestrates the registration and lookup of these components, delegating complex
+ * tasks like schema generation and callback management to specialized internal classes.
+ */
 public class ChirpRegistry {
 
+    // Core Registries directly managed by ChirpRegistry
     private final Map<String, FieldConverter<?>> converterRegistry;
-    private final Map<String, Class<?>> packetRegistry;
-    private final Map<Object, List<HandlerMethod>> listenerRegistry;
+    private final Map<String, Class<?>> packetRegistry; // Maps simplified type names to Class<?>
+    private final Map<Object, List<HandlerMethod>>
+            listenerRegistry; // Maps listener instances to their handler methods
 
-    private final Map<UUID, ChirpCallback<?>> callbackRegistry;
+    // Schema-related registries - populated by SchemaGenerator, but still exposed by ChirpRegistry
+    // for use by PacketSerializer. This allows SchemaGenerator to be private to ChirpRegistry,
+    // while still making the necessary data available.
     private final Map<String, PacketSchema> packetSchemaRegistry;
     private final Map<String, ObjectSchema> objectSchemaRegistry;
+    private final ConcurrentHashMap<String, Boolean>
+            inProgressSchemas; // Shared with SchemaGenerator for recursion safety
 
-    private final ConcurrentHashMap<String, Boolean> inProgressSchemas;
+    // Delegated Managers
+    private final SchemaGenerator schemaGenerator;
+    private final CallbackManager callbackManager;
 
-    private Thread callbackRemoverThread;
-
+    /**
+     * Converts a generic {@link Type} into a normalized uppercase string key for registry lookup.
+     * Handles both raw classes and parameterized types (e.g., List<String> becomes LIST<STRING>).
+     *
+     * @param type The Type to normalize.
+     * @return A normalized uppercase string representation of the type.
+     */
     public static String normalizeTypeName(Type type) {
         if (type instanceof Class<?> clazz) {
             return normalizeTypeName(clazz);
@@ -81,6 +90,13 @@ public class ChirpRegistry {
         return type.getTypeName().toUpperCase();
     }
 
+    /**
+     * Converts a {@link Class} into a normalized uppercase string key for registry lookup. Handles
+     * primitive types specifically and replaces problematic characters in class names.
+     *
+     * @param clazz The Class to normalize.
+     * @return A normalized uppercase string representation of the class.
+     */
     public static String normalizeTypeName(Class<?> clazz) {
         if (clazz.isPrimitive()) {
             if (clazz == byte.class) return "BYTE";
@@ -92,44 +108,100 @@ public class ChirpRegistry {
             if (clazz == boolean.class) return "BOOLEAN";
             if (clazz == char.class) return "CHARACTER";
         }
+        // Use getCanonicalName for nested classes (e.g., Outer.Inner) or fall back to getName
         String name = clazz.getCanonicalName() != null ? clazz.getCanonicalName() : clazz.getName();
         return name.replace('.', '_').replace('$', '_').toUpperCase();
     }
 
+    /**
+     * Constructs a new ChirpRegistry, initializing its internal registries and delegated managers.
+     */
     public ChirpRegistry() {
         this.packetRegistry = new ConcurrentHashMap<>();
         this.converterRegistry = new ConcurrentHashMap<>();
         this.listenerRegistry = new ConcurrentHashMap<>();
-        this.callbackRegistry = new ConcurrentHashMap<>();
+
+        // Initialize maps that SchemaGenerator will populate
         this.packetSchemaRegistry = new ConcurrentHashMap<>();
         this.objectSchemaRegistry = new ConcurrentHashMap<>();
         this.inProgressSchemas = new ConcurrentHashMap<>();
+
+        // Initialize delegated managers, passing necessary dependencies
+        this.schemaGenerator =
+                new SchemaGenerator(
+                        this.converterRegistry,
+                        this.packetSchemaRegistry,
+                        this.objectSchemaRegistry,
+                        this.inProgressSchemas);
+        this.callbackManager = new CallbackManager();
     }
 
+    /**
+     * Returns the registry of custom field converters.
+     *
+     * @return A map where keys are normalized type names and values are {@link FieldConverter}
+     *     instances.
+     */
     public Map<String, FieldConverter<?>> getConverterRegistry() {
         return converterRegistry;
     }
 
+    /**
+     * Returns the registry of registered packet classes.
+     *
+     * @return A map where keys are normalized packet type names and values are the {@link Class}
+     *     objects.
+     */
     public Map<String, Class<?>> getPacketRegistry() {
         return packetRegistry;
     }
 
+    /**
+     * Returns the registry of registered listener instances and their handler methods.
+     *
+     * @return A map where keys are listener instances and values are lists of {@link HandlerMethod}
+     *     objects.
+     */
     public Map<Object, List<HandlerMethod>> getListenerRegistry() {
         return listenerRegistry;
     }
 
+    /**
+     * Returns the registry of active callbacks, delegated to {@link CallbackManager}.
+     *
+     * @return A map where keys are packet UUIDs and values are {@link ChirpCallback} instances.
+     */
     public Map<UUID, ChirpCallback<?>> getCallbackRegistry() {
-        return callbackRegistry;
+        return callbackManager.getCallbackRegistry();
     }
 
+    /**
+     * Returns the registry of pre-computed packet schemas, populated by {@link SchemaGenerator}.
+     * This is primarily used by {@link io.fjsn.chirp.internal.PacketSerializer}.
+     *
+     * @return A map where keys are normalized packet type names and values are {@link PacketSchema}
+     *     instances.
+     */
     public Map<String, PacketSchema> getPacketSchemaRegistry() {
         return packetSchemaRegistry;
     }
 
+    /**
+     * Returns the registry of pre-computed object schemas for nested custom types, populated by
+     * {@link SchemaGenerator}. This is primarily used by {@link
+     * io.fjsn.chirp.internal.PacketSerializer}.
+     *
+     * @return A map where keys are normalized object type names and values are {@link ObjectSchema}
+     *     instances.
+     */
     public Map<String, ObjectSchema> getObjectSchemaRegistry() {
         return objectSchemaRegistry;
     }
 
+    /**
+     * Registers the default set of built-in field converters for common Java types (e.g., Boolean,
+     * Integer, String, List, Map, Set).
+     */
     public void registerDefaultConverters() {
         long startTime = System.currentTimeMillis();
         registerConverter(boolean.class, new BooleanConverter());
@@ -159,6 +231,8 @@ public class ChirpRegistry {
         registerConverter(String.class, new StringConverter());
         registerConverter(UUID.class, new UUIDConverter());
 
+        // These converters handle parameterized types, but their registration key is for the raw
+        // type
         registerConverter(List.class, new ListConverter());
         registerConverter(Set.class, new SetConverter());
         registerConverter(Map.class, new MapConverter());
@@ -166,6 +240,14 @@ public class ChirpRegistry {
         ChirpLogger.info("Registered default converters in " + (endTime - startTime) + "ms.");
     }
 
+    /**
+     * Registers a custom {@link FieldConverter} for a given generic type. If a converter for the
+     * specified type is already registered, a warning is logged and the existing converter is kept.
+     *
+     * @param genericType The {@link Class} representing the generic type this converter handles.
+     * @param converter The {@link FieldConverter} instance.
+     * @throws IllegalArgumentException if genericType or converter is null.
+     */
     public void registerConverter(Class<?> genericType, FieldConverter<?> converter) {
         long startTime = System.nanoTime();
         if (genericType == null) {
@@ -195,245 +277,44 @@ public class ChirpRegistry {
                         + "ms.");
     }
 
-    private boolean needsObjectSchema(Class<?> clazz) {
-        if (clazz == null
-                || clazz.isPrimitive()
-                || clazz.isArray()
-                || clazz.isInterface()
-                || clazz.getName().startsWith("java.lang")
-                || clazz.isEnum()) {
-            return false;
-        }
-        return !converterRegistry.containsKey(normalizeTypeName(clazz));
-    }
-
-    private void registerObjectSchema(Class<?> objectClass) {
-        long startTime = System.nanoTime();
-
-        if (objectClass.isEnum()) {
-            String enumTypeKey = normalizeTypeName(objectClass);
-            if (!converterRegistry.containsKey(enumTypeKey)) {
-                ChirpLogger.debug(
-                        "Registering EnumConverter for top-level enum class: "
-                                + objectClass.getName());
-                @SuppressWarnings({"unchecked", "rawtypes"})
-                FieldConverter<?> enumConverter = new EnumConverter();
-                converterRegistry.put(enumTypeKey, enumConverter);
-            }
-            return;
-        }
-
-        if (!needsObjectSchema(objectClass)) {
-            return;
-        }
-
-        String typeKey = normalizeTypeName(objectClass);
-
-        if (objectSchemaRegistry.containsKey(typeKey)) {
-            return;
-        }
-
-        if (inProgressSchemas.putIfAbsent(typeKey, Boolean.TRUE) != null) {
-            return;
-        }
-
-        try {
-            Constructor<?> noArgsConstructor = objectClass.getDeclaredConstructor();
-            noArgsConstructor.setAccessible(true);
-
-            List<FieldSchema> fieldSchemas = new ArrayList<>();
-            Set<Class<?>> nestedTypesToScan = new HashSet<>();
-
-            for (Field field : objectClass.getDeclaredFields()) {
-                if (field.isAnnotationPresent(ChirpField.class)) {
-                    FieldSchema fs = new FieldSchema(field);
-                    fieldSchemas.add(fs);
-
-                    Class<?> fieldRawType = fs.rawType;
-                    String fieldRawTypeName = normalizeTypeName(fieldRawType);
-
-                    if (fieldRawType.isEnum()) {
-                        if (!converterRegistry.containsKey(fieldRawTypeName)) {
-                            ChirpLogger.debug(
-                                    "Registering EnumConverter for field enum: "
-                                            + fieldRawType.getName());
-                            @SuppressWarnings({"unchecked", "rawtypes"})
-                            FieldConverter<?> enumConverter = new EnumConverter();
-                            converterRegistry.put(fieldRawTypeName, enumConverter);
-                        }
-                        continue;
-                    }
-
-                    if (fs.genericType instanceof ParameterizedType pt) {
-                        for (Type argType : pt.getActualTypeArguments()) {
-                            if (argType instanceof Class<?> actualClass) {
-                                if (needsObjectSchema(actualClass)) {
-                                    nestedTypesToScan.add(actualClass);
-                                }
-                            }
-                        }
-                    } else if (needsObjectSchema(fieldRawType)) {
-                        nestedTypesToScan.add(fieldRawType);
-                    }
-                }
-            }
-
-            ObjectSchema schema =
-                    new ObjectSchema(
-                            objectClass,
-                            noArgsConstructor,
-                            Collections.unmodifiableList(fieldSchemas));
-
-            objectSchemaRegistry.put(typeKey, schema);
-            long endTime = System.nanoTime();
-            ChirpLogger.debug(
-                    "Successfully registered ObjectSchema for "
-                            + objectClass.getName()
-                            + " in "
-                            + (endTime - startTime) / 1_000_000.0
-                            + "ms.");
-
-            for (Class<?> nestedType : nestedTypesToScan) {
-                registerObjectSchema(nestedType);
-            }
-
-        } catch (NoSuchMethodException e) {
-            inProgressSchemas.remove(typeKey);
-            ChirpLogger.severe(
-                    "Failed to register schema for "
-                            + objectClass.getName()
-                            + ": No no-argument constructor found. "
-                            + e.getMessage());
-            throw new IllegalArgumentException(
-                    "Object class "
-                            + objectClass.getName()
-                            + " must have a no-argument constructor to have a schema generated.",
-                    e);
-        } catch (Exception e) {
-            inProgressSchemas.remove(typeKey);
-            ChirpLogger.severe(
-                    "Failed to register schema for "
-                            + objectClass.getName()
-                            + ": "
-                            + e.getMessage());
-            throw new RuntimeException(
-                    "Failed to generate object schema for "
-                            + objectClass.getName()
-                            + ": "
-                            + e.getMessage(),
-                    e);
-        } finally {
-            inProgressSchemas.remove(typeKey);
-        }
-    }
-
+    /**
+     * Registers a class as a Chirp packet. This method delegates the schema generation to {@link
+     * SchemaGenerator} and also registers the packet class in the main {@code packetRegistry}.
+     *
+     * @param packetClass The {@link Class} to register as a packet.
+     * @throws IllegalArgumentException if the packetClass is invalid (e.g., missing {@link
+     *     ChirpPacket} annotation, no no-arg constructor), or already registered.
+     */
     public void registerPacket(Class<?> packetClass) {
-        long startTime = System.nanoTime();
+        // Delegate the complex schema generation and validation to SchemaGenerator
+        this.schemaGenerator.registerPacket(packetClass);
 
-        if (packetClass == null) {
-            throw new IllegalArgumentException("Packet class cannot be null");
-        }
-
-        if (!packetClass.isAnnotationPresent(ChirpPacket.class)) {
-            throw new IllegalArgumentException("Packet class must be annotated with @ChirpPacket");
-        }
-
+        // Also register in the ChirpRegistry's own packet registry for quick lookup
+        // by type name for dispatching.
         String type =
                 packetClass.getSimpleName().replaceAll("([a-z])([A-Z])", "$1_$2").toUpperCase();
-
         if (packetRegistry.containsKey(type)) {
-            throw new IllegalArgumentException("Packet type '" + type + "' is already registered");
+            // This case might be hit if registerPacket is called explicitly after a scan,
+            // or multiple times. SchemaGenerator handles its own idempotency.
+            ChirpLogger.warning(
+                    "Packet class '"
+                            + type
+                            + "' is already registered in ChirpRegistry. Skipping.");
+            return;
         }
-        if (packetSchemaRegistry.containsKey(type)) {
-            throw new IllegalArgumentException(
-                    "Packet schema for type '" + type + "' is already registered");
-        }
-
-        try {
-            Constructor<?> noArgsConstructor = packetClass.getDeclaredConstructor();
-            noArgsConstructor.setAccessible(true);
-
-            List<FieldSchema> fieldSchemas = new ArrayList<>();
-            Set<Class<?>> nestedTypesToScan = new HashSet<>();
-
-            for (Field field : packetClass.getDeclaredFields()) {
-                if (field.isAnnotationPresent(ChirpField.class)) {
-                    FieldSchema fs = new FieldSchema(field);
-                    fieldSchemas.add(fs);
-
-                    Class<?> fieldRawType = fs.rawType;
-                    String fieldRawTypeName = normalizeTypeName(fieldRawType);
-
-                    if (fieldRawType.isEnum()) {
-                        if (!converterRegistry.containsKey(fieldRawTypeName)) {
-                            ChirpLogger.debug(
-                                    "Registering EnumConverter for packet field enum: "
-                                            + fieldRawType.getName());
-                            FieldConverter<?> enumConverter = new EnumConverter();
-                            converterRegistry.put(fieldRawTypeName, enumConverter);
-                        }
-                        continue;
-                    }
-
-                    if (fs.genericType instanceof ParameterizedType pt) {
-                        for (Type argType : pt.getActualTypeArguments()) {
-                            if (argType instanceof Class<?> actualClass) {
-                                if (needsObjectSchema(actualClass)) {
-                                    nestedTypesToScan.add(actualClass);
-                                }
-                            }
-                        }
-                    } else if (needsObjectSchema(fieldRawType)) {
-                        nestedTypesToScan.add(fieldRawType);
-                    }
-                }
-            }
-
-            PacketSchema schema =
-                    new PacketSchema(
-                            packetClass,
-                            noArgsConstructor,
-                            Collections.unmodifiableList(fieldSchemas));
-
-            packetSchemaRegistry.put(type, schema);
-            packetRegistry.put(type, packetClass);
-            long endTime = System.nanoTime();
-            ChirpLogger.debug(
-                    "Successfully registered PacketSchema for "
-                            + packetClass.getName()
-                            + " in "
-                            + (endTime - startTime) / 1_000_000.0
-                            + "ms.");
-
-            for (Class<?> nestedType : nestedTypesToScan) {
-                registerObjectSchema(nestedType);
-            }
-
-        } catch (NoSuchMethodException e) {
-            ChirpLogger.severe(
-                    "Failed to register packet schema for "
-                            + packetClass.getName()
-                            + ": No no-argument constructor found. "
-                            + e.getMessage());
-            throw new IllegalArgumentException(
-                    "Packet class "
-                            + packetClass.getName()
-                            + " must have a no-argument constructor to be registered as a"
-                            + " ChirpPacket.",
-                    e);
-        } catch (SecurityException e) {
-            ChirpLogger.severe(
-                    "Security exception registering packet schema for "
-                            + packetClass.getName()
-                            + ": "
-                            + e.getMessage());
-            throw new RuntimeException(
-                    "Security exception while accessing constructor/fields for packet "
-                            + packetClass.getName(),
-                    e);
-        }
+        this.packetRegistry.put(type, packetClass);
     }
 
+    /**
+     * Registers an object instance as a Chirp listener. The listener class must be annotated with
+     * {@link ChirpListener}, and its methods handling events must be annotated with {@link
+     * ChirpHandler} and accept a single {@link ChirpPacketEvent} parameter with a parameterized
+     * type.
+     *
+     * @param listenerInstance The instance of the listener object to register.
+     * @throws IllegalArgumentException if listenerInstance is null, or its class is not annotated
+     *     with {@link ChirpListener}, or if its handler methods are improperly defined.
+     */
     public void registerListener(Object listenerInstance) {
         long startTime = System.nanoTime();
         if (listenerInstance == null) {
@@ -472,106 +353,34 @@ public class ChirpRegistry {
                         + "ms.");
     }
 
+    /**
+     * Registers a callback, delegating the operation to {@link CallbackManager}.
+     *
+     * @param packetId The UUID of the packet for which this is a callback.
+     * @param callback The {@link ChirpCallback} to register.
+     * @throws IllegalArgumentException if packetId or callback is null.
+     */
     public void registerCallback(UUID packetId, ChirpCallback<?> callback) {
-        long startTime = System.nanoTime();
-        if (packetId == null) {
-            throw new IllegalArgumentException("Packet ID cannot be null");
-        }
-
-        if (callback == null) {
-            throw new IllegalArgumentException("Callback cannot be null");
-        }
-
-        callbackRegistry.put(packetId, callback);
-        long endTime = System.nanoTime();
-        ChirpLogger.debug(
-                "Registered callback for packet "
-                        + packetId
-                        + " in "
-                        + (endTime - startTime) / 1_000_000.0
-                        + "ms.");
+        callbackManager.registerCallback(packetId, callback);
     }
 
-    public void removeExpiredCallbacks() {
-        List<UUID> toRemove = new ArrayList<>();
-        for (Map.Entry<UUID, ChirpCallback<?>> entry : callbackRegistry.entrySet()) {
-            UUID packetId = entry.getKey();
-            ChirpCallback<?> callback = entry.getValue();
-
-            if (callback.isExpired()) {
-                ChirpLogger.debug("Callback " + packetId + " expired. Handling timeout.");
-                if (callback.isCollectingResponses()) {
-                    if (!callback.getCollectedResponses().isEmpty()) {
-                        ChirpLogger.debug(
-                                "Callback "
-                                        + packetId
-                                        + " expired with "
-                                        + callback.getCollectedResponses().size()
-                                        + " collected responses. Invoking onResponseList.");
-                        try {
-                            @SuppressWarnings("unchecked")
-                            ChirpCallback<Object> typedCallback = (ChirpCallback<Object>) callback;
-                            typedCallback
-                                    .getOnMultipleResponse()
-                                    .accept(typedCallback.getCollectedResponses());
-                        } catch (Exception e) {
-                            ChirpLogger.severe(
-                                    "Error invoking onResponseList for expired callback "
-                                            + packetId
-                                            + ": "
-                                            + e.getMessage());
-                        }
-                    } else {
-                        ChirpLogger.debug(
-                                "Callback "
-                                        + packetId
-                                        + " expired with no collected responses. Invoking"
-                                        + " onTimeout.");
-                        callback.getOnSingleTimeout().run();
-                    }
-                } else {
-                    ChirpLogger.debug(
-                            "Single response callback "
-                                    + packetId
-                                    + " expired. Invoking onTimeout.");
-                    callback.getOnSingleTimeout().run();
-                }
-                toRemove.add(packetId);
-            }
-        }
-
-        for (UUID packetId : toRemove) {
-            callbackRegistry.remove(packetId);
-            ChirpLogger.debug("Removed expired callback: " + packetId);
-        }
-    }
-
+    /**
+     * Sets up the background thread for removing expired callbacks, delegating the operation to
+     * {@link CallbackManager}.
+     */
     public void setupCallbackRemoverThread() {
-        callbackRemoverThread =
-                new Thread(
-                        () -> {
-                            while (!Thread.currentThread().isInterrupted()) {
-                                try {
-                                    Thread.sleep(20L);
-                                    removeExpiredCallbacks();
-                                } catch (InterruptedException e) {
-                                    ChirpLogger.severe(
-                                            "Callback remover thread interrupted: "
-                                                    + e.getMessage());
-                                    Thread.currentThread().interrupt();
-                                    break;
-                                } catch (Exception e) {
-                                    ChirpLogger.severe(
-                                            "Error in callback remover thread: " + e.getMessage());
-                                }
-                            }
-                        },
-                        "Chirp-CallbackRemover");
-
-        callbackRemoverThread.setDaemon(true);
-        callbackRemoverThread.start();
+        callbackManager.setupCallbackRemoverThread();
     }
 
+    /**
+     * Finds and validates all methods annotated with {@link ChirpHandler} within a given listener
+     * class.
+     *
+     * @param listenerClass The class to inspect for handler methods.
+     * @return A list of {@link HandlerMethod} objects, each encapsulating a valid handler method.
+     * @throws IllegalArgumentException if a method annotated with {@link ChirpHandler} does not
+     *     meet the requirements (e.g., incorrect parameter count or type).
+     */
     private List<HandlerMethod> findHandlerMethods(Class<?> listenerClass) {
         long startTime = System.nanoTime();
         List<HandlerMethod> handlerMethods = new ArrayList<>();
@@ -641,6 +450,14 @@ public class ChirpRegistry {
         return Collections.unmodifiableList(handlerMethods);
     }
 
+    /**
+     * Helper method to determine the generic type argument of a {@link FieldConverter}
+     * implementation. This is used during automatic scanning of converters.
+     *
+     * @param converterClass The {@link Class} of the {@link FieldConverter} implementation.
+     * @return The {@link Class} representing the generic type the converter handles, or null if it
+     *     cannot be determined.
+     */
     private Class<?> getConverterGenericType(Class<?> converterClass) {
         for (Type iface : converterClass.getGenericInterfaces()) {
             if (iface instanceof ParameterizedType) {
@@ -663,129 +480,20 @@ public class ChirpRegistry {
         return null;
     }
 
-    public void scan(String packageName) {
-        long startTime = System.currentTimeMillis();
-        Reflections reflections = new Reflections(packageName, Scanners.TypesAnnotated);
-        ChirpLogger.info("Starting scan for package: " + packageName);
-
-        long currentSegmentStart = System.nanoTime();
-        for (Class<?> packetClass :
-                reflections.getTypesAnnotatedWith(ChirpPacket.class).stream()
-                        .filter(c -> !c.getPackage().getName().contains("shaded"))
-                        .collect(Collectors.toList())) {
-            ChirpPacket chirpPacketAnnotation = packetClass.getAnnotation(ChirpPacket.class);
-            if (chirpPacketAnnotation != null && !chirpPacketAnnotation.scan()) continue;
-
-            try {
-                registerPacket(packetClass);
-            } catch (IllegalArgumentException e) {
-                throw new RuntimeException(
-                        "Failed to register packet: "
-                                + packetClass.getName()
-                                + " - "
-                                + e.getMessage(),
-                        e);
-            }
-        }
-        long packetScanTime = System.nanoTime() - currentSegmentStart;
-        ChirpLogger.debug(
-                "  Packet scanning phase completed in " + packetScanTime / 1_000_000.0 + "ms.");
-
-        currentSegmentStart = System.nanoTime();
-        for (Class<?> converterClass :
-                reflections.getTypesAnnotatedWith(ChirpConverter.class).stream()
-                        .filter(c -> !c.getPackage().getName().contains("shaded"))
-                        .collect(Collectors.toList())) {
-
-            ChirpConverter chirpConverterAnnotation =
-                    converterClass.getAnnotation(ChirpConverter.class);
-            if (chirpConverterAnnotation != null && !chirpConverterAnnotation.scan()) continue;
-
-            try {
-                if (!FieldConverter.class.isAssignableFrom(converterClass)) {
-                    throw new IllegalArgumentException(
-                            "Converter class "
-                                    + converterClass.getName()
-                                    + " does not implement FieldConverter");
-                }
-
-                Class<?> convertedType = getConverterGenericType(converterClass);
-                if (convertedType == null) {
-                    throw new IllegalArgumentException(
-                            "Cannot determine generic type for converter: "
-                                    + converterClass.getName());
-                }
-
-                FieldConverter<?> converterInstance =
-                        (FieldConverter<?>) converterClass.getDeclaredConstructor().newInstance();
-
-                registerConverter(convertedType, converterInstance);
-            } catch (Exception e) {
-                throw new RuntimeException(
-                        "Failed to register converter: "
-                                + converterClass.getName()
-                                + " - "
-                                + e.getMessage(),
-                        e);
-            }
-        }
-        long converterScanTime = System.nanoTime() - currentSegmentStart;
-        ChirpLogger.debug(
-                "  Converter scanning phase completed in "
-                        + converterScanTime / 1_000_000.0
-                        + "ms.");
-
-        currentSegmentStart = System.nanoTime();
-        for (Class<?> listenerClass :
-                reflections.getTypesAnnotatedWith(ChirpListener.class).stream()
-                        .filter(c -> !c.getPackage().getName().contains("shaded"))
-                        .collect(Collectors.toList())) {
-
-            ChirpListener chirpListenerAnnotation =
-                    listenerClass.getAnnotation(ChirpListener.class);
-            if (chirpListenerAnnotation != null && !chirpListenerAnnotation.scan()) continue;
-
-            try {
-                Constructor<?> ctor = listenerClass.getDeclaredConstructor();
-                ctor.setAccessible(true);
-                Object listenerInstance = ctor.newInstance();
-                registerListener(listenerInstance);
-            } catch (Exception e) {
-                throw new RuntimeException(
-                        "Failed to register listener: "
-                                + listenerClass.getName()
-                                + " - "
-                                + e.getMessage(),
-                        e);
-            }
-        }
-        long listenerScanTime = System.nanoTime() - currentSegmentStart;
-        ChirpLogger.debug(
-                "  Listener scanning phase completed in " + listenerScanTime / 1_000_000.0 + "ms.");
-
-        long endTime = System.currentTimeMillis();
-        ChirpLogger.info(
-                "Overall scan for package: "
-                        + packageName
-                        + " completed in "
-                        + (endTime - startTime)
-                        + "ms.");
-    }
-
+    /**
+     * Clears all registered packets, listeners, converters, and delegates cleanup to the {@link
+     * SchemaGenerator} and {@link CallbackManager}. This method should be called when the Chirp
+     * instance is being shut down to release all associated resources and clear state.
+     */
     public void cleanup() {
         packetRegistry.clear();
         listenerRegistry.clear();
         converterRegistry.clear();
-        callbackRegistry.clear();
-        packetSchemaRegistry.clear();
-        objectSchemaRegistry.clear();
-        inProgressSchemas.clear();
 
-        if (callbackRemoverThread != null && callbackRemoverThread.isAlive()) {
-            callbackRemoverThread.interrupt();
-            callbackRemoverThread = null;
-        }
+        // Delegate cleanup to specialized managers
+        schemaGenerator.cleanup();
+        callbackManager.cleanup();
 
-        ChirpLogger.debug("Cleared all registrations");
+        ChirpLogger.debug("ChirpRegistry: Cleared all registrations and delegated cleanup.");
     }
 }

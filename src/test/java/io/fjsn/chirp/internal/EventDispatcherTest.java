@@ -5,6 +5,8 @@ import static org.mockito.Mockito.*;
 import io.fjsn.chirp.Chirp;
 import io.fjsn.chirp.ChirpPacketEvent;
 import io.fjsn.chirp.ChirpRegistry;
+import io.fjsn.chirp.internal.handler.EventDispatcher;
+import io.fjsn.chirp.internal.handler.HandlerMethod;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;

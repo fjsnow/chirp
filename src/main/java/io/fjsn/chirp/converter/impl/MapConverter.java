@@ -6,7 +6,7 @@ import com.google.gson.JsonPrimitive;
 
 import io.fjsn.chirp.ChirpRegistry;
 import io.fjsn.chirp.converter.FieldConverter;
-import io.fjsn.chirp.internal.PacketSerializer;
+import io.fjsn.chirp.internal.serialization.PacketSerializer;
 
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
@@ -37,7 +37,7 @@ public class MapConverter implements FieldConverter<Map<?, ?>> {
             if (!keyElement.isJsonPrimitive() || !keyElement.getAsJsonPrimitive().isString()) {
                 throw new IllegalArgumentException(
                         "Map keys must serialize to a JSON string primitive. Invalid key type or"
-                            + " converter for: "
+                                + " converter for: "
                                 + keyType.getTypeName());
             }
 

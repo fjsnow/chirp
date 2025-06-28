@@ -1,4 +1,4 @@
-package io.fjsn.chirp.internal;
+package io.fjsn.chirp.internal.serialization;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
@@ -9,6 +9,10 @@ import com.google.gson.JsonParser;
 
 import io.fjsn.chirp.ChirpRegistry;
 import io.fjsn.chirp.converter.FieldConverter;
+import io.fjsn.chirp.internal.schema.FieldSchema;
+import io.fjsn.chirp.internal.schema.ObjectSchema;
+import io.fjsn.chirp.internal.schema.PacketSchema;
+import io.fjsn.chirp.internal.util.ChirpLogger;
 
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;

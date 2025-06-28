@@ -1,8 +1,9 @@
-package io.fjsn.chirp.internal;
+package io.fjsn.chirp.internal.handler;
 
 import io.fjsn.chirp.ChirpCallback;
 import io.fjsn.chirp.ChirpPacketEvent;
 import io.fjsn.chirp.ChirpRegistry;
+import io.fjsn.chirp.internal.util.ChirpLogger;
 
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.WrongMethodTypeException;

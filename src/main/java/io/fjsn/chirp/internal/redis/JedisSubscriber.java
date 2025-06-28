@@ -1,4 +1,4 @@
-package io.fjsn.chirp.internal;
+package io.fjsn.chirp.internal.redis;
 
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
@@ -6,6 +6,9 @@ import com.google.gson.JsonParser;
 import io.fjsn.chirp.Chirp;
 import io.fjsn.chirp.ChirpPacketEvent;
 import io.fjsn.chirp.ChirpRegistry;
+import io.fjsn.chirp.internal.handler.EventDispatcher;
+import io.fjsn.chirp.internal.serialization.PacketSerializer;
+import io.fjsn.chirp.internal.util.ChirpLogger;
 
 import redis.clients.jedis.JedisPubSub;
 

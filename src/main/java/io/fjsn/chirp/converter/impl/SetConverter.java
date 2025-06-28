@@ -5,7 +5,7 @@ import com.google.gson.JsonElement;
 
 import io.fjsn.chirp.ChirpRegistry;
 import io.fjsn.chirp.converter.FieldConverter;
-import io.fjsn.chirp.internal.PacketSerializer;
+import io.fjsn.chirp.internal.serialization.PacketSerializer;
 
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;

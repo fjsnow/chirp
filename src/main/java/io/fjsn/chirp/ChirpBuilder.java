@@ -1,7 +1,8 @@
 package io.fjsn.chirp;
 
 import io.fjsn.chirp.converter.FieldConverter;
-import io.fjsn.chirp.internal.ChirpLogger;
+import io.fjsn.chirp.internal.util.AnnotationScanner;
+import io.fjsn.chirp.internal.util.ChirpLogger;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -85,7 +86,10 @@ public class ChirpBuilder {
 
         if (scanPackageName != null) {
             long scanStart = System.nanoTime();
-            chirp.scan(scanPackageName);
+            ChirpLogger.debug(
+                    "ChirpBuilder: Scanning package " + scanPackageName + " for annotations.");
+            AnnotationScanner.scan(scanPackageName, chirp.getRegistry());
+
             long scanEnd = System.nanoTime();
             ChirpLogger.debug(
                     "ChirpBuilder: Scan phase completed in "

@@ -1,4 +1,4 @@
-package io.fjsn.chirp.internal;
+package io.fjsn.chirp.internal.schema;
 
 import java.lang.reflect.Constructor;
 import java.util.List;

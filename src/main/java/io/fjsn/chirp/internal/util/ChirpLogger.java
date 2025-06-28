@@ -1,4 +1,4 @@
-package io.fjsn.chirp.internal;
+package io.fjsn.chirp.internal.util;
 
 import java.util.logging.Level;
 import java.util.logging.Logger;

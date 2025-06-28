@@ -1,4 +1,4 @@
-package io.fjsn.chirp.internal;
+package io.fjsn.chirp.internal.handler;
 
 import java.lang.invoke.MethodHandle;
 import java.lang.reflect.Method;

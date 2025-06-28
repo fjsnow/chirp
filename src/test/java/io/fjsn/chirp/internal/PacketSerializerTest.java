@@ -7,6 +7,7 @@ import com.google.gson.JsonObject;
 import io.fjsn.chirp.ChirpRegistry;
 import io.fjsn.chirp.annotation.ChirpField;
 import io.fjsn.chirp.annotation.ChirpPacket;
+import io.fjsn.chirp.internal.serialization.PacketSerializer;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;

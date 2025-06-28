@@ -1,10 +1,10 @@
 package io.fjsn.chirp;
 
 import io.fjsn.chirp.converter.FieldConverter;
-import io.fjsn.chirp.internal.ChirpLogger;
-import io.fjsn.chirp.internal.EventDispatcher;
-import io.fjsn.chirp.internal.JedisSubscriber;
-import io.fjsn.chirp.internal.PacketSerializer;
+import io.fjsn.chirp.internal.handler.EventDispatcher;
+import io.fjsn.chirp.internal.redis.JedisSubscriber;
+import io.fjsn.chirp.internal.serialization.PacketSerializer;
+import io.fjsn.chirp.internal.util.ChirpLogger;
 
 import redis.clients.jedis.Jedis;
 import redis.clients.jedis.JedisPool;
@@ -62,6 +62,10 @@ public class Chirp {
         return origin;
     }
 
+    public ChirpRegistry getRegistry() {
+        return registry;
+    }
+
     public void connect(String redisHost, int redisPort) {
         connect(redisHost, redisPort, null);
     }
@@ -114,10 +118,6 @@ public class Chirp {
         }
 
         registry.cleanup();
-    }
-
-    public void scan(String packageName) {
-        registry.scan(packageName);
     }
 
     public void registerPacket(Class<?> packetClass) {
