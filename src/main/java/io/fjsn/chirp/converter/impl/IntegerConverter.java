@@ -1,15 +1,34 @@
 package io.fjsn.chirp.converter.impl;
 
+import com.google.gson.JsonElement;
+import com.google.gson.JsonPrimitive;
+
+import io.fjsn.chirp.ChirpRegistry;
 import io.fjsn.chirp.annotation.ChirpConverter;
 import io.fjsn.chirp.converter.FieldConverter;
 
+import java.lang.reflect.Type;
+
 @ChirpConverter
 public class IntegerConverter implements FieldConverter<Integer> {
-    public String serialize(Integer value) {
-        return String.valueOf(value);
+    @Override
+    public JsonElement serialize(Integer value, Type type, ChirpRegistry registry) {
+        if (value == null) {
+            return null;
+        }
+        return new JsonPrimitive(value);
     }
 
-    public Integer deserialize(String value) {
-        return Integer.parseInt(value);
+    @Override
+    public Integer deserialize(JsonElement json, Type type, ChirpRegistry registry) {
+        if (json == null || json.isJsonNull()) {
+            return null;
+        }
+        if (!json.isJsonPrimitive() || !json.getAsJsonPrimitive().isNumber()) {
+            throw new IllegalArgumentException(
+                    "Expected JSON number primitive for Integer, got: "
+                            + json.getClass().getSimpleName());
+        }
+        return json.getAsInt();
     }
 }

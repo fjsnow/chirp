@@ -1,7 +1,8 @@
 package io.fjsn.chirp;
 
 import io.fjsn.chirp.converter.FieldConverter;
-import io.fjsn.chirp.internal.ChirpLogger;
+import io.fjsn.chirp.internal.util.AnnotationScanner;
+import io.fjsn.chirp.internal.util.ChirpLogger;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -49,13 +50,39 @@ public class ChirpBuilder {
         return this;
     }
 
+    public ChirpBuilder converters(Map<Class<?>, FieldConverter<?>> converters) {
+        for (Entry<Class<?>, FieldConverter<?>> entry : converters.entrySet())
+            this.converter(entry.getKey(), entry.getValue());
+        return this;
+    }
+
     public ChirpBuilder packet(Class<?> packetClass) {
         packetClasses.add(packetClass);
         return this;
     }
 
+    public ChirpBuilder packets(Class<?>... packetClasses) {
+        for (Class<?> packetClass : packetClasses) this.packet(packetClass);
+        return this;
+    }
+
+    public ChirpBuilder packets(List<Class<?>> packetClasses) {
+        for (Class<?> packetClass : packetClasses) this.packet(packetClass);
+        return this;
+    }
+
     public ChirpBuilder listener(Object listenerObject) {
         listenerObjects.add(listenerObject);
+        return this;
+    }
+
+    public ChirpBuilder listeners(Object... listenerObjects) {
+        for (Object listenerObject : listenerObjects) this.listener(listenerObject);
+        return this;
+    }
+
+    public ChirpBuilder listeners(List<Object> listenerObjects) {
+        for (Object listenerObject : listenerObjects) this.listener(listenerObject);
         return this;
     }
 
@@ -76,21 +103,63 @@ public class ChirpBuilder {
     }
 
     public Chirp build() {
+        long startTime = System.currentTimeMillis();
         if (channel == null || channel.isEmpty()) {
             throw new RuntimeException("Channel must be set");
         }
 
         Chirp chirp = origin != null ? new Chirp(channel, origin) : new Chirp(channel);
 
-        if (scanPackageName != null) chirp.scan(scanPackageName);
+        if (scanPackageName != null) {
+            long scanStart = System.nanoTime();
+            ChirpLogger.debug(
+                    "ChirpBuilder: Scanning package " + scanPackageName + " for annotations.");
+            AnnotationScanner.scan(scanPackageName, chirp.getRegistry());
+
+            long scanEnd = System.nanoTime();
+            ChirpLogger.debug(
+                    "ChirpBuilder: Scan phase completed in "
+                            + (scanEnd - scanStart) / 1_000_000.0
+                            + "ms.");
+        }
+
+        long manualRegisterStart = System.nanoTime();
         for (Class<?> clazz : packetClasses) chirp.registerPacket(clazz);
         for (Object obj : listenerObjects) chirp.registerListener(obj);
         for (Entry<Class<?>, FieldConverter<?>> entry : converters.entrySet())
             chirp.registerConverter(entry.getKey(), entry.getValue());
+        long manualRegisterEnd = System.nanoTime();
+        ChirpLogger.debug(
+                "ChirpBuilder: Manual registrations completed in "
+                        + (manualRegisterEnd - manualRegisterStart) / 1_000_000.0
+                        + "ms.");
 
+        long connectStart = System.nanoTime();
         chirp.connect(redisUsername, redisPort, redisPassword);
+        long connectEnd = System.nanoTime();
+        ChirpLogger.debug(
+                "ChirpBuilder: Redis connection completed in "
+                        + (connectEnd - connectStart) / 1_000_000.0
+                        + "ms.");
+
+        long subscribeStart = System.nanoTime();
         chirp.subscribe();
+        long subscribeEnd = System.nanoTime();
+        ChirpLogger.debug(
+                "ChirpBuilder: Redis subscription initiated in "
+                        + (subscribeEnd - subscribeStart) / 1_000_000.0
+                        + "ms.");
+
+        long callbackThreadStart = System.nanoTime();
         chirp.setupCallbackRemoverThread();
+        long callbackThreadEnd = System.nanoTime();
+        ChirpLogger.debug(
+                "ChirpBuilder: Callback remover thread setup in "
+                        + (callbackThreadEnd - callbackThreadStart) / 1_000_000.0
+                        + "ms.");
+
+        long endTime = System.currentTimeMillis();
+        ChirpLogger.info("Chirp build process completed in " + (endTime - startTime) + "ms.");
         return chirp;
     }
 }

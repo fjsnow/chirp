@@ -1,3 +1,4 @@
+<?xml version="1.0" encoding="UTF-8"?>
 <project xmlns="http://maven.apache.org/POM/4.0.0"
          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
@@ -6,27 +7,97 @@
 
   <groupId>io.fjsn</groupId>
   <artifactId>chirp</artifactId>
-  <version>1.2.0</version>
+  <version>2.0.0</version>
   <packaging>jar</packaging>
 
   <name>chirp</name>
-  <url>http://maven.apache.org</url>
+  <description>Simple annotation-driven Redis Pub/Sub packet system</description>
+  <url>https://github.com/fjsnow/chirp</url>
+
+  <licenses>
+    <license>
+      <name>MIT License</name>
+      <url>https://opensource.org/licenses/MIT</url>
+      <distribution>repo</distribution>
+    </license>
+  </licenses>
+
+  <developers>
+    <developer>
+      <name>Freddy Snow</name>
+      <email>chirp@fjsn.io</email>
+    </developer>
+  </developers>
+
+  <scm>
+    <connection>scm:git:git://github.com/fjsnow/chirp.git</connection>
+    <developerConnection>scm:git:ssh://github.com/fjsnow/chirp.git</developerConnection>
+    <url>https://github.com/fjsnow/chirp</url>
+    <tag>HEAD</tag>
+  </scm>
+
+  <properties>
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    <maven.compiler.source>17</maven.compiler.source>
+    <maven.compiler.target>17</maven.compiler.target>
+    <gson.version>2.11.0</gson.version>
+    <reflections.version>0.10.2</reflections.version>
+    <jedis.version>5.1.3</jedis.version>
+    <junit.version>5.10.3</junit.version>
+    <mockito.version>5.2.0</mockito.version>
+    <assertj.version>3.26.3</assertj.version>
+    <maven.compiler.plugin.version>3.13.0</maven.compiler.plugin.version>
+    <maven.shade.plugin.version>3.5.2</maven.shade.plugin.version>
+    <maven.surefire.plugin.version>3.2.5</maven.surefire.plugin.version>
+    <jacoco.maven.plugin.version>0.8.12</jacoco.maven.plugin.version>
+    <maven.resources.plugin.version>3.3.1</maven.resources.plugin.version>
+  </properties>
 
   <dependencies>
     <dependency>
       <groupId>com.google.code.gson</groupId>
       <artifactId>gson</artifactId>
-      <version>2.13.1</version>
+      <version>${gson.version}</version>
     </dependency>
     <dependency>
       <groupId>org.reflections</groupId>
       <artifactId>reflections</artifactId>
-      <version>0.10.2</version>
+      <version>${reflections.version}</version>
     </dependency>
     <dependency>
       <groupId>redis.clients</groupId>
       <artifactId>jedis</artifactId>
-      <version>6.0.0</version>
+      <version>${jedis.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.junit.jupiter</groupId>
+      <artifactId>junit-jupiter-api</artifactId>
+      <version>${junit.version}</version>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.junit.jupiter</groupId>
+      <artifactId>junit-jupiter-engine</artifactId>
+      <version>${junit.version}</version>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.mockito</groupId>
+      <artifactId>mockito-inline</artifactId>
+      <version>${mockito.version}</version>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.mockito</groupId>
+      <artifactId>mockito-junit-jupiter</artifactId>
+      <version>${mockito.version}</version>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.assertj</groupId>
+      <artifactId>assertj-core</artifactId>
+      <version>${assertj.version}</version>
+      <scope>test</scope>
     </dependency>
   </dependencies>
 
@@ -35,7 +106,7 @@
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-shade-plugin</artifactId>
-        <version>3.6.0</version>
+        <version>${maven.shade.plugin.version}</version>
         <executions>
           <execution>
             <phase>package</phase>
@@ -63,13 +134,49 @@
       </plugin>
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
-	<artifactId>maven-compiler-plugin</artifactId>
-	<version>3.14.0</version>
-	<configuration>
-	  <source>17</source>
-          <target>17</target>
-	</configuration>
+        <artifactId>maven-compiler-plugin</artifactId>
+        <version>${maven.compiler.plugin.version}</version>
+        <configuration>
+          <source>${maven.compiler.source}</source>
+          <target>${maven.compiler.target}</target>
+        </configuration>
+      </plugin>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-resources-plugin</artifactId>
+        <version>${maven.resources.plugin.version}</version>
+      </plugin>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-surefire-plugin</artifactId>
+        <version>${maven.surefire.plugin.version}</version>
+      </plugin>
+      <plugin>
+        <groupId>org.jacoco</groupId>
+        <artifactId>jacoco-maven-plugin</artifactId>
+        <version>${jacoco.maven.plugin.version}</version>
+        <executions>
+          <execution>
+            <id>default-prepare-agent</id>
+            <goals>
+              <goal>prepare-agent</goal>
+            </goals>
+          </execution>
+          <execution>
+            <id>default-report</id>
+            <phase>test</phase>
+            <goals>
+              <goal>report</goal>
+            </goals>
+          </execution>
+        </executions>
+        <configuration>
+          <excludes>
+            <exclude>examples/**/*</exclude>
+          </excludes>
+        </configuration>
       </plugin>
     </plugins>
   </build>
+
 </project>
