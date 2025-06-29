@@ -250,12 +250,8 @@ If you have scanning enabled and this class lives within the package, Chirp will
 #### Converters
 
 During transfer, Chirp needs to serialize your packet to a JSON structure then later deserialize it.
-B
-y default, Chirp comes with a range of converters for all of Java's primitive types and their boxed equivalents. Chirp also automatically handles `String`, `UUID`, and `Optional<T>` types.
 
-Chirp also comes out-of-the-box with converters for common collections like `List<T>`, `Set<T>`, and `Map<K, V>`, where `T`, `K`, and `V` are any types that have a registered converter. (In the case of `Map<K, V>`, both `K` must have a registered converter that converts it to a `String`.
-
-Finally, Chirp also supports nested objects, provided they still have `@ChirpField` annotations on their fields and a no-args constructor.
+Out the box, Chirp comes with a range of converters for Java's primitive types (and their boxed equivalents), `String`, `UUID`, and `Optional<T>`, and some common collections like `List<T>`, `Set<T>`, and `Map<K, V>` (for Maps, `K`'s register must convert it to a `String`). It also supports nested objects.
 
 ##### Custom Converters
 
